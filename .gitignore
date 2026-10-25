@@ -47,3 +47,11 @@ companion/tests/__pycache__/
 companion/*.log
 # 本地伴生程序：仅保留在本地，不随仓库分发
 companion/
+
+# ---- Electron 桌面客户端构建产物 ----
+desktop/node_modules/
+desktop/release/
+desktop/resources/companion/
+desktop/resources/mpv/
+desktop/.pyinstaller/
+desktop/.next/

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { PageShell } from '@/components/study/page-shell';
@@ -23,6 +23,11 @@ export default function CourseDetailPage() {
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    setIsDesktop(Boolean(window.utopiaDesktop));
+  }, []);
 
   const course = courses.find((c) => c.id === params?.id);
 
@@ -105,7 +110,7 @@ export default function CourseDetailPage() {
             <div className="flex flex-wrap items-center gap-2 mt-4">
               {nextLesson ? (
                 <Link
-                  href={watchHref(course, nextLesson)}
+                  href={isDesktop && localPlayerHref(course, nextLesson) ? localPlayerHref(course, nextLesson)! : watchHref(course, nextLesson)}
                   className="btn-primary"
                 >
                   <Icon name="play" className="w-4 h-4" />
@@ -166,7 +171,10 @@ export default function CourseDetailPage() {
                   </span>
                 )}
                 {lesson.url || lesson.embedUrl ? (
-                  <Link href={watchHref(course, lesson)} className="btn-ghost btn-sm shrink-0">
+                  <Link
+                    href={isDesktop && localHref ? localHref : watchHref(course, lesson)}
+                    className="btn-ghost btn-sm shrink-0"
+                  >
                     <Icon name="play" className="w-3.5 h-3.5" />
                     播放
                   </Link>
@@ -175,7 +183,7 @@ export default function CourseDetailPage() {
                     待补充
                   </button>
                 )}
-                {localHref && (
+                {!isDesktop && localHref && (
                   <Link href={localHref} className="btn-ghost btn-sm shrink-0" title="用本地 mpv 高清播放，需运行 companion 伴生程序">
                     本地高清
                   </Link>
@@ -228,22 +236,29 @@ function watchHref(course: Course, lesson: Lesson): string {
   return `/watch?${sp.toString()}`;
 }
 
-/** B 站嵌入章节 → 本地 mpv 高清播放页（需要 companion 伴生程序） */
+/** 课程章节 → 本地 mpv 播放页（需要 companion 伴生程序） */
 function localPlayerHref(course: Course, lesson: Lesson): string | null {
-  if (!lesson.embedUrl) return null;
+  if (!lesson.url && !lesson.embedUrl) return null;
+  const sp = new URLSearchParams({
+    title: lesson.title,
+    subject: course.subject,
+    courseId: course.id,
+    lessonId: lesson.id,
+    courseTitle: course.title,
+  });
+  if (lesson.url) {
+    sp.set('url', lesson.url);
+    return `/local-player?${sp.toString()}`;
+  }
   try {
-    const embed = new URL(lesson.embedUrl);
+    const embed = new URL(lesson.embedUrl!);
     const bvid = embed.searchParams.get('bvid');
-    if (!bvid) return null;
-    const sp = new URLSearchParams({
-      bvid,
-      p: embed.searchParams.get('p') || '1',
-      title: lesson.title,
-      subject: course.subject,
-      courseId: course.id,
-      lessonId: lesson.id,
-      courseTitle: course.title,
-    });
+    if (bvid) {
+      sp.set('bvid', bvid);
+      sp.set('p', embed.searchParams.get('p') || '1');
+    } else {
+      sp.set('url', lesson.embedUrl!);
+    }
     return `/local-player?${sp.toString()}`;
   } catch {
     return null;

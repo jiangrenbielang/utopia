@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { LocalPlayer } from '@/components/study/local-player';
 
 export const metadata: Metadata = {
-  title: '本地高清播放 · Utopia',
+  title: '本地高清播放',
   description: 'B 站 API + mpv 本地高清播放，并通过 mpv IPC 同步学习时长。',
 };
 

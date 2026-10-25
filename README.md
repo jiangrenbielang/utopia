@@ -20,6 +20,7 @@
 |---|---|---|
 | [app](app/) | Android / 移动端 App：倒计时、计时、统计、日志、补录、备份 | React 19 + Vite + Capacitor 8 |
 | [video](video/) | Web 网课平台：课程库、播放即计时、倒计时、统计、日志、资源库 | Next.js 15 + TypeScript + Tailwind |
+| [desktop](desktop/) | Windows Electron 客户端：一键启动 Web + 本地 mpv 统一播放 | Electron + Node |
 | [backend](backend/) | 安装包分发 + 移动端 Web 在线版托管 | Node 内置 http（零依赖） |
 | [docs](docs/) | 开发文档与产品规格 | Markdown |
 | [screenshots](screenshots/) | 移动端截图 | PNG |
@@ -74,6 +75,11 @@ cd backend && node server.js
 
 课程库按 7 个考研科目组织，章节支持 m3u8 / mp4 直链或 B 站站外播放器 iframe；**播放即计时**，离开页面自动保存；另有自由计时、日/周/月统计、学习日志、考试倒计时、资源库聚合搜索与课程进度。
 
+### Windows 桌面客户端
+
+`desktop/` 是 Electron 客户端：启动时自动拉起 Next.js Web 服务与本地 companion，使用 mpv 统一播放 B 站 / 直链课程，并在本地高清页选择课程章节。安装包构建见 [desktop/README.md](desktop/README.md)。
+
+> companion 源码只保留在本地，不随仓库分发；构建安装包前需要本地 `companion/`、mpv 和 PyInstaller。
 ### 分发服务
 
 APK 下载页、二维码、HTTPS 部署说明、版本登记脚本。

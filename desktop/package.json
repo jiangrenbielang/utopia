@@ -1,0 +1,75 @@
+{
+    "name":  "utopia-desktop",
+    "version":  "0.1.0",
+    "private":  true,
+    "description":  "Utopia 桌面客户端：Web 学习台 + 本地 mpv 播放 + B 站解析",
+    "author":  "Utopia",
+    "main":  "main.js",
+    "scripts":  {
+                    "start":  "node scripts/start.mjs",
+                    "build:web":  "node scripts/build-web.mjs",
+                    "build:companion":  "powershell -ExecutionPolicy Bypass -File scripts/build-companion.ps1",
+                    "copy:mpv":  "powershell -ExecutionPolicy Bypass -File scripts/copy-mpv.ps1",
+                    "pack":  "npm run build:web \u0026\u0026 electron-builder --dir",
+                    "dist":  "npm run build:web \u0026\u0026 electron-builder --win nsis --x64"
+                },
+    "devDependencies":  {
+                            "electron":  "^45.0.0",
+                            "electron-builder":  "^26.0.12"
+                        },
+    "build":  {
+                  "appId":  "com.utopia.desktop",
+                  "productName":  "Utopia",
+                  "directories":  {
+                                      "output":  "release"
+                                  },
+                  "files":  [
+                                "main.js",
+                                "preload.js",
+                                "settings.html",
+                                "settings-preload.js",
+                                "package.json",
+                                "icon.ico"
+                            ],
+                  "extraResources":  [
+                                         {
+                                             "from":  "../video/.next/standalone",
+                                             "to":  "web"
+                                         },
+                                         {
+                                             "from":  "../video/.next/standalone/node_modules",
+                                             "to":  "web/node_modules"
+                                         },
+                                         {
+                                             "from":  "resources/companion",
+                                             "to":  "companion"
+                                         },
+                                         {
+                                             "from":  "resources/mpv",
+                                             "to":  "mpv"
+                                         }
+                                     ],
+                  "win":  {
+                              "target":  [
+                                             {
+                                                 "target":  "nsis",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             }
+                                         ],
+                              "artifactName":  "Utopia-Setup-${version}.${ext}",
+                              "signAndEditExecutable":  false,
+                              "icon":  "icon.ico"
+                          },
+                  "nsis":  {
+                               "oneClick":  false,
+                               "allowToChangeInstallationDirectory":  true,
+                               "createDesktopShortcut":  true,
+                               "createStartMenuShortcut":  true,
+                               "shortcutName":  "Utopia"
+                           },
+                  "electronDist":  "node_modules/electron/dist",
+                  "icon":  "icon.ico"
+              }
+}

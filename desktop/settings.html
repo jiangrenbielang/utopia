@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Utopia 设置</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1220; --panel:#121c2e; --line:#25344d; --text:#e8f0fb; --muted:#9fb0c8; --accent:#4aa3ff; --danger:#ff6b6b; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family:"Microsoft YaHei",system-ui,sans-serif; font-size:13px; }
+    .wrap { padding:22px; }
+    h1 { font-size:18px; margin:0 0 4px; }
+    .sub { color:var(--muted); margin:0 0 18px; line-height:1.6; }
+    label { display:block; color:var(--muted); margin:14px 0 6px; }
+    input[type=password], input[type=text] { width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); outline:none; }
+    input:focus { border-color:var(--accent); box-shadow:0 0 0 2px rgba(74,163,255,.15); }
+    .hint { color:var(--muted); font-size:12px; line-height:1.6; margin-top:6px; }
+    .row { display:flex; gap:10px; margin-top:18px; }
+    button { padding:9px 16px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; font-size:13px; }
+    button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+    button:disabled { opacity:.6; cursor:default; }
+    .check { display:flex; align-items:center; gap:8px; margin-top:10px; color:var(--muted); }
+    .check input { width:auto; }
+    .status { min-height:20px; margin-top:12px; color:var(--muted); }
+    .status.ok { color:#5fe08a; }
+    .status.err { color:var(--danger); }
+    .warn { border:1px solid #4b3a1f; background:#1e1a10; color:#f2cf8b; padding:10px 12px; border-radius:8px; line-height:1.6; margin-top:16px; }
+    code { color:#9fd0ff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Utopia 设置</h1>
+    <p class="sub">配置 B 站登录态和 Web 访问密码。SESSDATA 使用 Windows 凭据加密后保存在本机，不会上传。</p>
+
+    <label for="sessdata">B 站 SESSDATA</label>
+    <input id="sessdata" type="password" autocomplete="off" placeholder="已配置时留空保持不变；首次使用请粘贴" />
+    <div class="hint">只用于本地解析 B 站视频清晰度；不填则通常只有 480P。</div>
+    <label class="check"><input id="clearSessdata" type="checkbox" /> 清除已保存的 SESSDATA</label>
+
+    <label for="password">Web 访问密码</label>
+    <input id="password" type="password" autocomplete="off" placeholder="留空保持当前密码（默认 utopia2026）" />
+    <div class="hint">修改后应用会自动重启，本地 Web 服务随之更新。</div>
+
+    <div class="row">
+      <button class="primary" id="save">保存并重启</button>
+      <button id="cancel">取消</button>
+    </div>
+    <div class="status" id="status"></div>
+
+    <div class="warn">
+      SESSDATA 等同于你的 B 站登录态。不要把 <code>config.json</code>、<code>companion-data</code> 或安装目录发给别人。
+      如果怀疑泄露，请到 B 站退出所有设备并修改密码。
+    </div>
+  </div>
+  <script>
+    const statusEl = document.getElementById('status');
+    const sessdataEl = document.getElementById('sessdata');
+    const passwordEl = document.getElementById('password');
+    const clearEl = document.getElementById('clearSessdata');
+    const saveEl = document.getElementById('save');
+
+    function setStatus(text, kind) {
+      statusEl.textContent = text;
+      statusEl.className = `status ${kind || ''}`;
+    }
+
+    async function load() {
+      try {
+        const data = await window.desktopSettings.load();
+        if (data.sessdataConfigured) {
+          sessdataEl.placeholder = '已配置（留空保持，输入新值则覆盖）';
+        } else {
+          sessdataEl.placeholder = '未配置；粘贴 SESSDATA 可启用 1080P+';
+        }
+        if (data.passwordConfigured) passwordEl.placeholder = '已配置（留空保持）';
+      } catch (error) {
+        setStatus(`读取配置失败：${error.message || error}`, 'err');
+      }
+    }
+
+    saveEl.addEventListener('click', async () => {
+      saveEl.disabled = true;
+      setStatus('正在保存并重启…');
+      try {
+        await window.desktopSettings.save({
+          sessdata: sessdataEl.value,
+          clearSessdata: clearEl.checked,
+          password: passwordEl.value,
+        });
+      } catch (error) {
+        saveEl.disabled = false;
+        setStatus(`保存失败：${error.message || error}`, 'err');
+      }
+    });
+
+    document.getElementById('cancel').addEventListener('click', () => window.desktopSettings.close());
+    load();
+  </script>
+</body>
+</html>

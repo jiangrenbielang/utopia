@@ -9,8 +9,10 @@ export default function HomePage({
   config, 
   records, 
   timerState, 
+  courses = [],
   onStartTimer, 
   onJumpToTimer, 
+  onOpenCourses,
   onOpenEditDate 
 }) {
   const quote = getRandomQuote();
@@ -141,6 +143,66 @@ export default function HomePage({
         ) : (
           <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             今日尚未开始计时，去专注一下吧！
+          </div>
+        )}
+      </div>
+
+
+      {/* 课程推荐：与 Web 端课程库打通 */}
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <BookOpen size={17} color="var(--primary-blue)" />
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700 }}>课程推荐</h3>
+          </div>
+          <button onClick={onOpenCourses} style={{ background: 'transparent', color: 'var(--text-sub)', fontSize: '0.78rem', padding: 0 }}>
+            全部课程 <ChevronRight size={14} />
+          </button>
+        </div>
+
+        {courses.length === 0 ? (
+          <div className="card" style={{ padding: 16, textAlign: 'center', marginBottom: 0 }}>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-sub)', marginBottom: 8 }}>还没有课程，去课程库添加一门网课</p>
+            <button className="btn-primary" onClick={onOpenCourses} style={{ padding: '8px 12px', fontSize: '0.8rem' }}>
+              打开课程库
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {courses.slice(0, 2).map((course) => {
+              const byLesson = new Map();
+              let learnedMin = 0;
+              records.forEach((r) => {
+                if (r.course_id !== course.id || !r.lesson_id) return;
+                byLesson.set(r.lesson_id, (byLesson.get(r.lesson_id) || 0) + (r.duration_min || 0));
+                learnedMin += r.duration_min || 0;
+              });
+              const done = (course.lessons || []).filter((l) => byLesson.has(l.id)).length;
+              const color = subjectColorMap[course.subject] || '#9AA5B1';
+              return (
+                <div
+                  key={course.id}
+                  className="card"
+                  role="button"
+                  tabIndex={0}
+                  onClick={onOpenCourses}
+                  onKeyDown={(e) => e.key === 'Enter' && onOpenCourses()}
+                  style={{ padding: 12, marginBottom: 0, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                >
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: `${color}20`, color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <BookOpen size={19} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{course.title}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', marginTop: 2 }}>
+                      {course.subject} · {course.lessons?.length || 0} 讲 · 已学 {learnedMin >= 60 ? `${Math.floor(learnedMin / 60)}h${learnedMin % 60 ? `${learnedMin % 60}m` : ''}` : `${learnedMin}m`}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{done}/{course.lessons?.length || 0}</span>
+                  <ChevronRight size={16} color="var(--text-muted)" />
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

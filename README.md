@@ -36,6 +36,10 @@ Utopia 由原「研时记」升级而来，保留已有学习数据与安装标�
 |---|---|
 | ![移动端统计](screenshots/03_donut_ring_chart.png) | ![Web 课程库](video/docs/preview/courses.png) |
 
+| 移动端课程库 | 移动端播放计时 |
+|---|---|
+| ![移动端课程库](screenshots/06_course_library.png) | ![移动端播放计时](screenshots/08_course_player.png) |
+
 ## 快速开始（Windows）
 
 双击根目录 **`启动.bat`**，按菜单选择：
@@ -62,7 +66,7 @@ cd backend && node server.js
 
 ### 移动端
 
-倒计时、正计时 / 番茄钟、科目管理、圆环统计、每日趋势、打卡历、历史日志编辑删除、手动补录、JSON 备份导入导出、深色模式。
+课程库（按科目组织、章节 m3u8 / mp4 播放、播放即计时、章节进度），倒计时、正计时 / 番茄钟、科目管理、圆环统计、每日趋势、打卡历、历史日志编辑删除、手动补录、JSON 备份导入导出、深色模式。
 
 ### Web 网课平台
 

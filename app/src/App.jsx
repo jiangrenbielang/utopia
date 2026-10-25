@@ -7,6 +7,7 @@ import LogPage from './pages/LogPage';
 import EditExamDateModal from './components/EditExamDateModal';
 import SettingsModal from './components/SettingsModal';
 import BackupModal from './components/BackupModal';
+import CoursesPage from './pages/CoursesPage';
 
 import { 
   getAppConfig, 
@@ -14,16 +15,18 @@ import {
   getAllRecords, 
   addRecord, 
   updateRecord, 
-  deleteRecord 
+  deleteRecord,
+  getCourses
 } from './services/storage';
 
 import { timerService } from './services/timerService';
-import { AlertCircle, Clock, Check } from 'lucide-react';
+import { AlertCircle, Clock, Check, Settings } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [config, setConfig] = useState(getAppConfig());
   const [records, setRecords] = useState(getAllRecords());
+  const [courses, setCourses] = useState(getCourses());
   const [timerState, setTimerState] = useState(timerService.getState());
 
   // 弹窗状态控制
@@ -129,8 +132,16 @@ export default function App() {
           <span style={{ fontWeight: 800, fontSize: '1.05rem', letterSpacing: '0.5px' }}>Utopia</span>
         </div>
 
-        <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 500 }}>
-          考研专注 · 纯本地
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-sub)', fontWeight: 500 }}>考研专注 · 纯本地</span>
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            title="设置"
+            aria-label="设置"
+            style={{ background: 'transparent', color: 'var(--text-sub)', padding: 6 }}
+          >
+            <Settings size={20} />
+          </button>
         </div>
       </header>
 
@@ -141,9 +152,20 @@ export default function App() {
             config={config}
             records={records}
             timerState={timerState}
+            courses={courses}
+            onOpenCourses={() => setActiveTab('courses')}
             onStartTimer={() => setActiveTab('timer')}
             onJumpToTimer={() => setActiveTab('timer')}
             onOpenEditDate={() => setShowEditDateModal(true)}
+          />
+        )}
+
+        {activeTab === 'courses' && (
+          <CoursesPage
+            config={config}
+            records={records}
+            onRefreshData={refreshRecords}
+            onCoursesChanged={() => setCourses(getCourses())}
           />
         )}
 
@@ -173,12 +195,7 @@ export default function App() {
       </main>
 
       {/* 底部导航 Tab */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        timerState={timerState}
-        onOpenSettings={() => setShowSettingsModal(true)}
-      />
+      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} timerState={timerState} />
 
       {/* 弹窗：修改目标考试日期 */}
       {showEditDateModal && (

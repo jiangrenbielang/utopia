@@ -12,6 +12,7 @@ export default function LogPage({
   onAddManualRecord 
 }) {
   const [filterDate, setFilterDate] = useState('ALL');
+  const [filterSubject, setFilterSubject] = useState('ALL');
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -31,8 +32,9 @@ export default function LogPage({
 
   // 日期筛选
   const filteredRecords = records.filter(r => {
-    if (filterDate === 'ALL') return true;
-    return r.record_date === filterDate;
+    if (filterDate !== 'ALL' && r.record_date !== filterDate) return false;
+    if (filterSubject !== 'ALL' && r.subject_name !== filterSubject) return false;
+    return true;
   });
 
   // 倒序排列
@@ -62,17 +64,27 @@ export default function LogPage({
     <div className="animate-fade-in" style={{ padding: '16px', paddingBottom: '32px' }}>
       
       {/* 顶部筛选栏与补录入口 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
           <Filter size={16} color="var(--text-sub)" />
           <select 
             value={filterDate} 
             onChange={(e) => { setFilterDate(e.target.value); setPage(1); }}
-            style={{ fontSize: '0.85rem', padding: '6px 10px' }}
+            style={{ fontSize: '0.85rem', padding: '6px 10px', width: 'auto', flex: 1, minWidth: 140 }}
           >
-            <option value="ALL">显示全部历史日志 ({records.length}条)</option>
+            <option value="ALL">全部日期 ({records.length}条)</option>
             {[...new Set(records.map(r => r.record_date))].sort().reverse().map(d => (
               <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+          <select
+            value={filterSubject}
+            onChange={(e) => { setFilterSubject(e.target.value); setPage(1); }}
+            style={{ fontSize: '0.85rem', padding: '6px 10px', width: 'auto', minWidth: 96 }}
+          >
+            <option value="ALL">全部科目</option>
+            {(config.subjects || []).map(s => (
+              <option key={s.name} value={s.name}>{s.name}</option>
             ))}
           </select>
         </div>

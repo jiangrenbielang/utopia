@@ -1,6 +1,6 @@
 # Utopia 移动端
 
-Utopia 的 Android / 移动端：React 19 + Vite + Capacitor 8。倒计时、学习计时、统计图表、历史日志与本地备份，全部数据保存在设备本地。
+Utopia 的 Android / 移动端：React 19 + Vite + Capacitor 8。与 Web 端功能对齐：课程库、m3u8 / mp4 网课播放、播放即计时、章节进度、倒计时、学习计时、统计图表、历史日志与本地备份，全部数据保存在设备本地。
 
 ## 开发
 
@@ -26,7 +26,9 @@ APK 构建与发布流程见 [../backend/README.md](../backend/README.md)；分�
 
 ## 目录
 
-- `src/pages/`：首页、计时、统计、日志四个 Tab
+- `src/pages/`：首页、课程、计时、统计、日志五个 Tab
+- `src/components/CoursePlayer.jsx`：网课播放器（hls.js，播放即计时、离开自动保存）
+- `src/components/CourseEditorModal.jsx`：课程 / 章节编辑
 - `src/components/`：倒计时、饼图、趋势图、打卡历、设置/备份/补录弹窗
 - `src/services/storage.js`：本地存储、备份格式、倒计时工具
 - `src/services/timerService.js`：计时状态机与心跳恢复

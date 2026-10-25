@@ -1,14 +1,15 @@
 import React from 'react';
-import { Home, Timer, BarChart3, BookOpen, Settings } from 'lucide-react';
+import { Home, Timer, BarChart3, BookOpen, FileText } from 'lucide-react';
 
-export default function Navbar({ activeTab, setActiveTab, timerState, onOpenSettings }) {
+export default function Navbar({ activeTab, setActiveTab, timerState }) {
   const isTimerRunning = timerState && timerState.status !== 'IDLE';
 
   const tabs = [
     { id: 'home', label: '首页', icon: Home },
-    { id: 'timer', label: '学习计时', icon: Timer, badge: isTimerRunning },
-    { id: 'stats', label: '统计图表', icon: BarChart3 },
-    { id: 'log', label: '历史日志', icon: BookOpen }
+    { id: 'courses', label: '课程', icon: BookOpen },
+    { id: 'timer', label: '计时', icon: Timer, badge: isTimerRunning },
+    { id: 'stats', label: '统计', icon: BarChart3 },
+    { id: 'log', label: '日志', icon: FileText }
   ];
 
   return (
@@ -19,9 +20,9 @@ export default function Navbar({ activeTab, setActiveTab, timerState, onOpenSett
       right: 0,
       backgroundColor: 'var(--bg-card)',
       borderTop: '1px solid var(--border-color)',
-      padding: '8px 12px 12px 12px',
+      padding: '8px 8px 12px 8px',
       display: 'flex',
-      justify: 'space-around',
+      justifyContent: 'space-around',
       alignItems: 'center',
       zIndex: 100,
       boxShadow: 'var(--shadow-lg)'
@@ -42,7 +43,7 @@ export default function Navbar({ activeTab, setActiveTab, timerState, onOpenSett
               border: 'none',
               color: isActive ? 'var(--primary-blue)' : 'var(--text-sub)',
               fontWeight: isActive ? 700 : 500,
-              fontSize: '0.75rem',
+              fontSize: '0.72rem',
               position: 'relative'
             }}
           >
@@ -65,24 +66,6 @@ export default function Navbar({ activeTab, setActiveTab, timerState, onOpenSett
           </button>
         );
       })}
-
-      <button
-        onClick={onOpenSettings}
-        title="设置"
-        style={{
-          flex: 0.6,
-          flexDirection: 'column',
-          gap: '4px',
-          padding: '6px 0',
-          background: 'transparent',
-          border: 'none',
-          color: 'var(--text-sub)',
-          fontSize: '0.75rem'
-        }}
-      >
-        <Settings size={20} />
-        <span>设置</span>
-      </button>
     </div>
   );
 }

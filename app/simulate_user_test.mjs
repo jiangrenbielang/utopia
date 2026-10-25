@@ -40,7 +40,7 @@ async function runSimulatedUserTest() {
 
     // 2. 切换到【学习计时】页并模拟快捷手动打卡
     console.log('\n▶ 2. 点击「学习计时」Tab，模拟快捷直接录入 90 分钟 [自命题法硕]...');
-    await clickByText(page, 'button', '学习计时');
+    await clickByText(page, 'button', '计时');
     await new Promise(r => setTimeout(r, 600));
 
     // 切换为手动输入科目模式
@@ -79,7 +79,7 @@ async function runSimulatedUserTest() {
 
     // 4. 切换到【统计图表】观察圆环分布图
     console.log('\n▶ 4. 点击「统计图表」Tab，观察圆环分布图与时间明细...');
-    await clickByText(page, 'button', '统计图表');
+    await clickByText(page, 'button', '统计');
     await new Promise(r => setTimeout(r, 800));
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}\\03_donut_ring_chart.png` });
@@ -87,14 +87,14 @@ async function runSimulatedUserTest() {
 
     // 5. 切换到【历史日志】
     console.log('\n▶ 5. 点击「历史日志」Tab，检查记录条目...');
-    await clickByText(page, 'button', '历史日志');
+    await clickByText(page, 'button', '日志');
     await new Promise(r => setTimeout(r, 800));
     await page.screenshot({ path: `${SCREENSHOT_DIR}\\04_history_logs.png` });
     console.log('  📸 已捕获截图: 04_history_logs.png');
 
     // 6. 切换护眼深色模式
     console.log('\n▶ 6. 打开「设置」并一键切换「护眼深色模式」...');
-    await clickByText(page, 'button', '设置');
+    await page.evaluate(() => document.querySelector('button[aria-label="设置"]')?.click());
     await new Promise(r => setTimeout(r, 600));
 
     await clickByText(page, 'button', '切换');

@@ -71,7 +71,8 @@ function normalizeCourse(raw) {
       ? raw.lessons.map((lesson, index) => ({
           id: String(lesson.id || `l-${now}-${index}`),
           title: String(lesson.title || `第 ${index + 1} 讲`),
-          ...(lesson.url ? { url: String(lesson.url) } : {})
+          ...(lesson.url ? { url: String(lesson.url) } : {}),
+          ...(lesson.embedUrl ? { embedUrl: String(lesson.embedUrl) } : {})
         }))
       : [],
     createdAt: Number(raw.createdAt) || now,

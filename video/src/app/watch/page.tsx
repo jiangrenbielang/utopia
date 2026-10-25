@@ -35,6 +35,7 @@ import {
   db,
 } from '@/lib/db';
 import { StudySaveDialog } from '@/components/study/save-dialog';
+import { extractBilibiliEmbed } from '@/lib/study/embed';
 import { addStudyRecord } from '@/lib/study/store';
 import { dateKey } from '@/lib/study/date';
 import { formatClock } from '@/lib/study/format';
@@ -71,7 +72,11 @@ function WatchContent() {
   const subjectParam = searchParams.get('subject') || '';
   const courseId = searchParams.get('courseId') || '';
   const courseTitle = searchParams.get('courseTitle') || '';
-  const isCourseDirect = !sourceKey || sourceKey === 'course';
+  /** B 站站外播放器：iframe 模式，不经过 ArtPlayer；只允许白名单内的播放器地址 */
+  const embedUrl = sourceKey === 'embed' ? extractBilibiliEmbed(directUrl) : null;
+  const isEmbed = Boolean(embedUrl);
+  const playableUrl = isEmbed ? embedUrl! : directUrl;
+  const isCourseDirect = !sourceKey || sourceKey === 'course' || isEmbed;
 
   const [reversed, setReversed] = useState(false);
   const [switchOpen, setSwitchOpen] = useState(false);
@@ -126,14 +131,14 @@ function WatchContent() {
   const episodes = useMemo(() => detailQuery.data?.episodes ?? [], [detailQuery.data]);
   const videoTitle = titleParam || detailQuery.data?.videoInfo?.title || '未知视频';
 
-  // 当前播放地址：优先取剧集列表中的当前集，其次直连 URL 参数
+  // 当前播放地址：优先取剧集列表中的当前集，其次直连 URL 参数（B 站嵌入使用校验后的地址）
   const currentUrl = useMemo(() => {
     if (episodes.length > 0) {
       const idx = Math.min(Math.max(indexParam, 0), episodes.length - 1);
-      return episodes[idx] || directUrl;
+      return episodes[idx] || playableUrl;
     }
-    return directUrl;
-  }, [episodes, indexParam, directUrl]);
+    return playableUrl;
+  }, [episodes, indexParam, playableUrl]);
 
   const currentIndex = useMemo(() => {
     if (episodes.length > 0) return Math.min(Math.max(indexParam, 0), episodes.length - 1);
@@ -205,6 +210,9 @@ function WatchContent() {
   const [studySaved, setStudySaved] = useState(false);
   const [studySubject, setStudySubject] = useState(subjectParam || '其他');
   const [saveOpen, setSaveOpen] = useState(false);
+  const [embedPaused, setEmbedPaused] = useState(false);
+  const embedPausedRef = useRef(false);
+  embedPausedRef.current = embedPaused;
   const defaultContent = courseTitle ? `${courseTitle} · ${videoTitle}` : videoTitle;
 
   // 换集时位置归零，避免上一集的位置被当成倒退
@@ -243,6 +251,23 @@ function WatchContent() {
     const timer = setInterval(() => setWatchedSec(Math.floor(watchedRef.current)), 1_000);
     return () => clearInterval(timer);
   }, []);
+
+  // B 站 iframe 是跨域页面，拿不到播放/暂停事件：
+  // 按「页面可见且未手动暂停」的停留时长累计，切后台/锁屏不计。
+  useEffect(() => {
+    if (!isEmbed) return;
+    studyStartRef.current = Date.now();
+    let last = Date.now();
+    const timer = setInterval(() => {
+      const now = Date.now();
+      if (!document.hidden && !embedPausedRef.current) {
+        watchedRef.current += (now - last) / 1000;
+        setWatchedSec(Math.floor(watchedRef.current));
+      }
+      last = now;
+    }, 1_000);
+    return () => clearInterval(timer);
+  }, [isEmbed]);
 
   useEffect(() => {
     const handler = () => {
@@ -346,6 +371,22 @@ function WatchContent() {
     );
   }
 
+  if (sourceKey === 'embed' && !embedUrl) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <h1 className="text-content font-medium mb-2">B 站嵌入地址无效</h1>
+          <p className="text-sm text-muted mb-4">
+            只支持 player.bilibili.com/player.html 的站外播放器地址，请回到课程编辑中重新粘贴 iframe 代码。
+          </p>
+          <Link href={courseId ? `/courses/${courseId}` : '/courses'} className="btn-primary">
+            返回课程
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!source && !directUrl) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -378,7 +419,7 @@ function WatchContent() {
           <div className="min-w-0">
             <h1 className="text-sm font-medium text-content truncate">{videoTitle}</h1>
             <p className="text-xs text-faint truncate">
-              {source?.name || '课程视频'}
+              {isEmbed ? 'B 站视频' : source?.name || '课程视频'}
               {episodes.length > 0 && ` · 第 ${currentIndex + 1}/${episodes.length} 集`}
               {courseTitle && (
                 <>
@@ -407,6 +448,9 @@ function WatchContent() {
                 // 「已加入下载队列」由 DownloadManager 在真正入队后提示：
                 // 这里先提示的话，用户随后取消保存位置会出现「已加入→已取消」的矛盾
               }}
+              disabled={isEmbed}
+              title={isEmbed ? 'B 站嵌入视频不支持直接下载' : '下载本集'}
+              style={isEmbed ? { display: 'none' } : undefined}
             >
               下载本集
             </button>
@@ -424,6 +468,18 @@ function WatchContent() {
           <div>
             <div ref={playerFrameRef} className="aspect-video bg-black rounded-lg overflow-hidden">
               {currentUrl ? (
+                isEmbed ? (
+                  <iframe
+                    src={currentUrl}
+                    title={videoTitle}
+                    className="w-full h-full"
+                    scrolling="no"
+                    frameBorder="0"
+                    allowFullScreen
+                    allow="autoplay; fullscreen; picture-in-picture"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                ) : (
                 <PlayerShell
                   url={currentUrl}
                   title={videoTitle}
@@ -454,6 +510,7 @@ function WatchContent() {
                     });
                   }}
                 />
+                )
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   {detailQuery.isLoading ? (
@@ -537,6 +594,16 @@ function WatchContent() {
                 </select>
               </label>
 
+              {isEmbed && !studySaved && (
+                <button
+                  className="btn-ghost btn-sm"
+                  onClick={() => setEmbedPaused((v) => !v)}
+                  title="B 站 iframe 无法读取播放状态，可手动暂停计时"
+                >
+                  {embedPaused ? '继续计时' : '暂停计时'}
+                </button>
+              )}
+
               {studySaved ? (
                 <span className="flex items-center gap-1 text-xs text-success">
                   <Icon name="check" className="w-3.5 h-3.5" />
@@ -555,7 +622,9 @@ function WatchContent() {
               )}
 
               <span className="text-[11px] text-faint ml-auto">
-                播放时自动累计 · 不足 1 分钟不记录 · 离开页面自动保存
+                {isEmbed
+                  ? 'B 站嵌入按页面可见时长计时 · 切后台不计 · 可手动暂停'
+                  : '播放时自动累计 · 不足 1 分钟不记录 · 离开页面自动保存'}
               </span>
             </div>
 

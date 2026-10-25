@@ -1,6 +1,6 @@
 # Utopia 移动端
 
-Utopia 的 Android / 移动端：React 19 + Vite + Capacitor 8。与 Web 端功能对齐：课程库、m3u8 / mp4 网课播放、播放即计时、章节进度、倒计时、学习计时、统计图表、历史日志与本地备份，全部数据保存在设备本地。
+Utopia 的 Android / 移动端：React 19 + Vite + Capacitor 8。与 Web 端功能对齐：课程库、m3u8 / mp4 网课播放、B 站 iframe 嵌入、播放计时、章节进度、倒计时、学习计时、统计图表、历史日志与本地备份，全部数据保存在设备本地。
 
 ## 开发
 
@@ -9,6 +9,12 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
+
+## B 站嵌入
+
+课程编辑的章节「视频地址」支持直接粘贴 B 站整段 `<iframe ...></iframe>`，保存时只提取并校验 `player.bilibili.com/player.html` 地址。
+
+B 站 iframe 是跨域页面，App 无法读取视频播放/暂停状态，因此按页面可见停留时长计时；切后台不计，可手动暂停。直链视频仍按真实播放进度计时。
 ## 构建
 
 ```bash
@@ -27,7 +33,7 @@ APK 构建与发布流程见 [../backend/README.md](../backend/README.md)；分�
 ## 目录
 
 - `src/pages/`：首页、课程、计时、统计、日志五个 Tab
-- `src/components/CoursePlayer.jsx`：网课播放器（hls.js，播放即计时、离开自动保存）
+- `src/components/CoursePlayer.jsx`：网课播放器（hls.js / B 站 iframe，播放计时、离开自动保存）
 - `src/components/CourseEditorModal.jsx`：课程 / 章节编辑
 - `src/components/`：倒计时、饼图、趋势图、打卡历、设置/备份/补录弹窗
 - `src/services/storage.js`：本地存储、备份格式、倒计时工具

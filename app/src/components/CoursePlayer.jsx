@@ -15,7 +15,8 @@ function formatClock(seconds) {
 
 /**
  * 移动端课程播放器：与 Web 端「播放即计时」一致。
- * - 按真实播放进度累计，暂停/快进不计；
+ * - 直链视频按真实播放进度累计，暂停/快进不计；
+ * - B 站 iframe 为跨域页面，按页面可见停留时长累计，可手动暂停；
  * - 满 1 分钟可结束并填写内容，离开页面自动保存；
  * - 记录关联 course_id / lesson_id，用于课程章节进度。
  */
@@ -32,6 +33,10 @@ export default function CoursePlayer({ course, lesson, subjects = [], onClose, o
   const [showSave, setShowSave] = useState(false);
   const [content, setContent] = useState(`${course.title} · ${lesson.title}`);
   const [subject, setSubject] = useState(course.subject);
+  const [embedPaused, setEmbedPaused] = useState(false);
+  const isEmbed = Boolean(lesson.embedUrl);
+  const embedPausedRef = useRef(false);
+  embedPausedRef.current = embedPaused;
 
   const subjectOptions = Array.from(new Set([course.subject, ...subjects.map((s) => s.name)]));
   const contentRef = useRef(content);
@@ -40,6 +45,10 @@ export default function CoursePlayer({ course, lesson, subjects = [], onClose, o
   subjectRef.current = subject;
 
   useEffect(() => {
+    if (isEmbed) {
+      setError('');
+      return undefined;
+    }
     const video = videoRef.current;
     if (!video) return undefined;
     setError('');
@@ -69,7 +78,22 @@ export default function CoursePlayer({ course, lesson, subjects = [], onClose, o
       video.removeAttribute('src');
       video.load();
     };
-  }, [lesson.url]);
+  }, [lesson.url, isEmbed]);
+
+  useEffect(() => {
+    if (!isEmbed) return undefined;
+    startRef.current = Date.now();
+    let last = Date.now();
+    const timer = setInterval(() => {
+      const now = Date.now();
+      if (!document.hidden && !embedPausedRef.current && !savedRef.current) {
+        watchedRef.current += (now - last) / 1000;
+        setWatchedSec(Math.floor(watchedRef.current));
+      }
+      last = now;
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isEmbed]);
 
   const persist = (override) => {
     if (savedRef.current) return false;
@@ -189,24 +213,35 @@ export default function CoursePlayer({ course, lesson, subjects = [], onClose, o
       </header>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', background: '#000' }}>
-        <video
-          ref={videoRef}
-          controls
-          playsInline
-          preload="metadata"
-          onTimeUpdate={handleTimeUpdate}
-          onSeeking={() => {
-            lastTimeRef.current = videoRef.current?.currentTime || 0;
-          }}
-          onPlay={() => {
-            lastTimeRef.current = videoRef.current?.currentTime || 0;
-          }}
-          onEnded={() => persist()}
-          style={{ width: '100%', maxHeight: '62vh', background: '#000' }}
-        />
+        {isEmbed ? (
+          <iframe
+            src={lesson.embedUrl}
+            title={`${course.title} · ${lesson.title}`}
+            style={{ width: '100%', aspectRatio: '16 / 9', maxHeight: '62vh', border: 0, background: '#000' }}
+            allowFullScreen
+            allow="autoplay; fullscreen; picture-in-picture"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        ) : (
+          <video
+            ref={videoRef}
+            controls
+            playsInline
+            preload="metadata"
+            onTimeUpdate={handleTimeUpdate}
+            onSeeking={() => {
+              lastTimeRef.current = videoRef.current?.currentTime || 0;
+            }}
+            onPlay={() => {
+              lastTimeRef.current = videoRef.current?.currentTime || 0;
+            }}
+            onEnded={() => persist()}
+            style={{ width: '100%', maxHeight: '62vh', background: '#000' }}
+          />
+        )}
       </div>
 
-      {error && (
+      {!isEmbed && error && (
         <div style={{ padding: '10px 16px', background: '#451a1a', color: '#fca5a5', fontSize: '0.8rem' }}>{error}</div>
       )}
 
@@ -219,25 +254,38 @@ export default function CoursePlayer({ course, lesson, subjects = [], onClose, o
               {formatClock(watchedSec)}
             </span>
           </div>
-          <select
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            disabled={saved}
-            style={{ width: 'auto', flex: 1, minWidth: 110, padding: '7px 10px', fontSize: '0.8rem' }}
-            aria-label="本次学习科目"
-          >
-            {subjectOptions.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
+          {!isEmbed && (
+            <select
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              disabled={saved}
+              style={{ width: 'auto', flex: 1, minWidth: 110, padding: '7px 10px', fontSize: '0.8rem' }}
+              aria-label="本次学习科目"
+            >
+              {subjectOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          )}
+          {isEmbed && !saved && (
+            <button
+              className="btn-outline"
+              onClick={() => setEmbedPaused((v) => !v)}
+              style={{ padding: '9px 12px', fontSize: '0.82rem' }}
+            >
+              {embedPaused ? '继续计时' : '暂停计时'}
+            </button>
+          )}
           <button className="btn-primary" onClick={openSave} disabled={saved} style={{ padding: '9px 14px', fontSize: '0.85rem' }}>
             {saved ? '已保存' : '结束并保存'}
           </button>
         </div>
         <p style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-          播放时自动累计 · 不足 1 分钟不记录 · 离开页面自动保存
+          {isEmbed
+            ? 'B 站嵌入按可见时长计时 · 可暂停 · 离开自动保存'
+            : '播放时自动累计 · 不足 1 分钟不记录 · 离开页面自动保存'}
         </p>
       </footer>
 

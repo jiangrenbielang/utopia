@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Save, Trash2, X } from 'lucide-react';
+import { extractBilibiliEmbed } from '../services/courseSource';
 
 const emptyLesson = (index) => ({ id: `l-${Date.now()}-${index}`, title: `第 ${index + 1} 讲`, url: '' });
 
@@ -23,7 +24,7 @@ export default function CourseEditorModal({ course, subjects, onSave, onClose })
       setDescription(course.description || '');
       setLessons(
         course.lessons?.length
-          ? course.lessons.map((l) => ({ id: l.id, title: l.title, url: l.url || '' }))
+          ? course.lessons.map((l) => ({ id: l.id, title: l.title, url: l.url || l.embedUrl || '' }))
           : [emptyLesson(0)]
       );
     } else {
@@ -52,10 +53,23 @@ export default function CourseEditorModal({ course, subjects, onSave, onClose })
       setError('至少需要一节课程');
       return;
     }
-    const bad = valid.find((l) => l.url.trim() && !/^https?:\/\/.+/i.test(l.url.trim()));
-    if (bad) {
-      setError(`「${bad.title}」的视频地址需要以 http(s):// 开头`);
-      return;
+    const normalizedLessons = [];
+    for (const lesson of valid) {
+      const raw = lesson.url.trim();
+      if (!raw) {
+        normalizedLessons.push({ id: lesson.id, title: lesson.title.trim() });
+        continue;
+      }
+      const embedUrl = extractBilibiliEmbed(raw);
+      if (embedUrl) {
+        normalizedLessons.push({ id: lesson.id, title: lesson.title.trim(), embedUrl });
+        continue;
+      }
+      if (!/^https?:\/\/.+/i.test(raw)) {
+        setError(`「${lesson.title}」的视频地址需要以 http(s):// 开头，或粘贴 B 站嵌入代码`);
+        return;
+      }
+      normalizedLessons.push({ id: lesson.id, title: lesson.title.trim(), url: raw });
     }
     onSave({
       ...(course || {}),
@@ -63,7 +77,7 @@ export default function CourseEditorModal({ course, subjects, onSave, onClose })
       subject,
       teacher: teacher.trim() || undefined,
       description: description.trim() || undefined,
-      lessons: valid.map((l) => ({ id: l.id, title: l.title.trim(), url: l.url.trim() || undefined })),
+      lessons: normalizedLessons,
     });
   };
 
@@ -108,7 +122,7 @@ export default function CourseEditorModal({ course, subjects, onSave, onClose })
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <label style={{ ...labelStyle, marginBottom: 0 }}>课程章节</label>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>视频地址可留空</span>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>支持 B 站 iframe，可留空</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '32vh', overflowY: 'auto', paddingRight: 2 }}>
@@ -127,7 +141,7 @@ export default function CourseEditorModal({ course, subjects, onSave, onClose })
                   <input
                     value={lesson.url}
                     onChange={(e) => updateLesson(index, { url: e.target.value })}
-                    placeholder="视频直链 m3u8 / mp4（可留空）"
+                    placeholder="视频直链 m3u8 / mp4，或粘贴 B 站 iframe 代码"
                     style={{ padding: '8px 10px', fontSize: '0.78rem' }}
                   />
                 </div>

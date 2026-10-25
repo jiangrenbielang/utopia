@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addDays, dateKey, startOfDay, startOfMonth, startOfWeek } from './date';
 import { computePeriod, cumulativeTotals, getPeriodRange, recordsInRange, studyStreak, subjectTotals } from './stats';
 import { formatClock, formatMinutes, formatMinutesCompact } from './format';
+import { extractBilibiliEmbed } from './embed';
 import type { StudyRecord } from './types';
 
 function record(partial: Partial<StudyRecord> & { recordDate: string; durationMin: number }): StudyRecord {
@@ -89,6 +90,24 @@ describe('统计口径', () => {
     const wednesday = new Date(2026, 9, 21); // 2026-10-21 周三
     expect(startOfWeek(wednesday).getDay()).toBe(1);
     expect(dateKey(startOfWeek(wednesday))).toBe('2026-10-19');
+  });
+});
+
+describe('B 站嵌入', () => {
+  const iframe =
+    '<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=116281978197595&bvid=BV19PQBBREK1&cid=36927900669&p=35" scrolling="no" allowfullscreen="true"></iframe>';
+
+  it('从整段 iframe 代码中提取播放器地址并升级为 https', () => {
+    const url = extractBilibiliEmbed(iframe);
+    expect(url).toBe(
+      'https://player.bilibili.com/player.html?isOutside=true&aid=116281978197595&bvid=BV19PQBBREK1&cid=36927900669&p=35'
+    );
+  });
+
+  it('拒绝非 B 站或非播放器地址', () => {
+    expect(extractBilibiliEmbed('https://example.com/video.m3u8')).toBeNull();
+    expect(extractBilibiliEmbed('https://player.bilibili.com.evil.com/player.html?aid=1')).toBeNull();
+    expect(extractBilibiliEmbed('https://www.bilibili.com/video/BV19PQBBREK1')).toBeNull();
   });
 });
 

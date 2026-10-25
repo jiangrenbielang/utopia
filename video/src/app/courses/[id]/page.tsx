@@ -45,7 +45,7 @@ export default function CourseDetailPage() {
   const doneLessons = course.lessons.filter((l) => byLesson.has(l.id)).length;
   const pct = totalLessons > 0 ? Math.round((doneLessons / totalLessons) * 100) : 0;
   const color = subjectColor(course.subject);
-  const playable = course.lessons.filter((l) => l.url);
+  const playable = course.lessons.filter((l) => l.url || l.embedUrl);
   const nextLesson = playable.find((l) => !byLesson.has(l.id)) ?? playable[0];
 
   const handleSaved = (saved: Course) => {
@@ -155,7 +155,7 @@ export default function CourseDetailPage() {
                   <p className="text-sm text-content truncate">{lesson.title}</p>
                   <p className="text-[11px] text-faint mt-0.5">
                     {learnedMin > 0 ? `已学 ${formatMinutes(learnedMin)}` : '未学习'}
-                    {!lesson.url && ' · 待补充视频'}
+                    {!lesson.url && !lesson.embedUrl && ' · 待补充视频'}
                   </p>
                 </div>
                 {learnedMin > 0 && (
@@ -164,7 +164,7 @@ export default function CourseDetailPage() {
                     已记录
                   </span>
                 )}
-                {lesson.url ? (
+                {lesson.url || lesson.embedUrl ? (
                   <Link href={watchHref(course, lesson)} className="btn-ghost btn-sm shrink-0">
                     <Icon name="play" className="w-3.5 h-3.5" />
                     播放
@@ -208,11 +208,11 @@ export default function CourseDetailPage() {
   );
 }
 
-/** 课程章节 → 播放页（source=course 表示直链播放，不依赖点播源） */
+/** 课程章节 → 播放页（source=course 直链；source=embed 为 B 站站外播放器 iframe） */
 function watchHref(course: Course, lesson: Lesson): string {
   const sp = new URLSearchParams({
-    source: 'course',
-    url: lesson.url ?? '',
+    source: lesson.embedUrl ? 'embed' : 'course',
+    url: lesson.embedUrl || lesson.url || '',
     title: lesson.title,
     subject: course.subject,
     courseId: course.id,

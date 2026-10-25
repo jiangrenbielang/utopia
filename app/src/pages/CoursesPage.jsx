@@ -78,8 +78,8 @@ export default function CoursesPage({ config, records, onRefreshData, onCoursesC
   };
 
   const playLesson = (course, lesson) => {
-    if (!lesson.url?.trim()) {
-      window.alert('该章节还没有配置视频地址，请先编辑课程补充直链。');
+    if (!lesson.url?.trim() && !lesson.embedUrl?.trim()) {
+      window.alert('该章节还没有配置视频地址，请先编辑课程补充直链或 B 站嵌入代码。');
       return;
     }
     setPlaying({ course, lesson });
@@ -87,7 +87,7 @@ export default function CoursesPage({ config, records, onRefreshData, onCoursesC
 
   if (selected) {
     const stat = statsFor(selected);
-    const playable = (selected.lessons || []).filter((l) => l.url?.trim());
+    const playable = (selected.lessons || []).filter((l) => l.url?.trim() || l.embedUrl?.trim());
     const nextLesson = playable.find((l) => !stat.byLesson.has(l.id)) || playable[0];
 
     return (
@@ -207,15 +207,15 @@ export default function CoursesPage({ config, records, onRefreshData, onCoursesC
                   </div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
                     {learned > 0 ? `已学 ${formatCompact(learned)}` : '未学习'}
-                    {!lesson.url && ' · 待补充视频'}
+                    {!lesson.url && !lesson.embedUrl && ' · 待补充视频'}
                   </div>
                 </div>
                 {learned > 0 && <CheckCircle2 size={15} color="#10B981" />}
                 <button
                   className="btn-outline"
-                  disabled={!lesson.url}
+                  disabled={!lesson.url && !lesson.embedUrl}
                   onClick={() => playLesson(selected, lesson)}
-                  style={{ padding: '6px 10px', fontSize: '0.78rem', flexShrink: 0, opacity: lesson.url ? 1 : 0.5 }}
+                  style={{ padding: '6px 10px', fontSize: '0.78rem', flexShrink: 0, opacity: lesson.url || lesson.embedUrl ? 1 : 0.5 }}
                 >
                   <Play size={14} /> 播放
                 </button>

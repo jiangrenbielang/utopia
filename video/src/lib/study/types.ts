@@ -63,6 +63,8 @@ export interface Lesson {
   title: string;
   /** 直链视频地址（m3u8 / mp4）；为空表示待补充 */
   url?: string;
+  /** B 站站外播放器嵌入地址（已通过白名单校验） */
+  embedUrl?: string;
 }
 
 export interface Course {

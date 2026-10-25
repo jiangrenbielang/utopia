@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { extractBilibiliEmbed } from '@/lib/study/embed';
 import { saveCourse } from '@/lib/study/store';
 import { SUBJECTS, type Course } from '@/lib/study/types';
 import { Icon } from '@/components/icon';
@@ -11,7 +12,7 @@ interface LessonDraft {
   url: string;
 }
 
-/** 新建 / 编辑课程：章节支持追加视频直链（m3u8 / mp4） */
+/** 新建 / 编辑课程：章节支持视频直链（m3u8 / mp4）或 B 站站外播放器嵌入 */
 export function CourseDialog({
   open,
   course,
@@ -38,7 +39,7 @@ export function CourseDialog({
       setSubject(course.subject);
       setTeacher(course.teacher ?? '');
       setDescription(course.description ?? '');
-      setLessons(course.lessons.map((l) => ({ id: l.id, title: l.title, url: l.url ?? '' })));
+      setLessons(course.lessons.map((l) => ({ id: l.id, title: l.title, url: l.url ?? l.embedUrl ?? '' })));
     } else {
       setTitle('');
       setSubject('数学');
@@ -64,10 +65,24 @@ export function CourseDialog({
       setError('至少需要一节课程');
       return;
     }
-    const badUrl = validLessons.find((l) => l.url.trim() && !/^https?:\/\/.+/i.test(l.url.trim()));
-    if (badUrl) {
-      setError(`「${badUrl.title}」的视频地址需要以 http(s):// 开头`);
-      return;
+    const normalizedLessons: { id?: string; title: string; url?: string; embedUrl?: string }[] = [];
+    for (const lesson of validLessons) {
+      const raw = lesson.url.trim();
+      if (!raw) {
+        normalizedLessons.push({ id: lesson.id, title: lesson.title });
+        continue;
+      }
+      // 支持直接粘贴 B 站整段 iframe：只提取并保存白名单内的 player.bilibili.com 地址
+      const embedUrl = extractBilibiliEmbed(raw);
+      if (embedUrl) {
+        normalizedLessons.push({ id: lesson.id, title: lesson.title, embedUrl });
+        continue;
+      }
+      if (!/^https?:\/\/.+/i.test(raw)) {
+        setError(`「${lesson.title}」的视频地址需要以 http(s):// 开头，或粘贴 B 站嵌入代码`);
+        return;
+      }
+      normalizedLessons.push({ id: lesson.id, title: lesson.title, url: raw });
     }
     const saved = saveCourse({
       id: course?.id,
@@ -75,7 +90,7 @@ export function CourseDialog({
       subject,
       teacher,
       description,
-      lessons: validLessons.map((l) => ({ id: l.id, title: l.title, url: l.url })),
+      lessons: normalizedLessons,
     });
     onSaved?.(saved);
     onClose();
@@ -162,7 +177,7 @@ export function CourseDialog({
 
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs text-muted">课程章节</span>
-          <span className="text-[11px] text-faint">视频地址留空时，可在课程详情页先去资源库查找</span>
+          <span className="text-[11px] text-faint">支持直链或粘贴 B 站整段 iframe 代码</span>
         </div>
         <div className="space-y-2 max-h-[38vh] overflow-y-auto scrollbar-thin pr-1">
           {lessons.map((lesson, index) => (
@@ -178,7 +193,7 @@ export function CourseDialog({
               />
               <input
                 className="input flex-[1.4] min-w-0"
-                placeholder="视频直链（m3u8 / mp4，可留空）"
+                placeholder="视频直链（m3u8 / mp4）或 B 站 iframe 代码，可留空"
                 value={lesson.url}
                 onChange={(e) => updateLesson(index, { url: e.target.value })}
                 aria-label={`第 ${index + 1} 讲视频地址`}

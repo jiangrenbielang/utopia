@@ -240,6 +240,7 @@ function normalizeLesson(input: Partial<Lesson>, index: number): Lesson {
     id: String(input.id || `l-${Date.now()}-${index}`),
     title: String(input.title || `第 ${index + 1} 讲`),
     ...(input.url ? { url: String(input.url) } : {}),
+    ...(input.embedUrl ? { embedUrl: String(input.embedUrl) } : {}),
   };
 }
 
@@ -304,7 +305,7 @@ export interface CourseDraft {
   subject: string;
   teacher?: string;
   description?: string;
-  lessons: { id?: string; title: string; url?: string }[];
+  lessons: { id?: string; title: string; url?: string; embedUrl?: string }[];
 }
 
 export function saveCourse(draft: CourseDraft): Course {
@@ -320,6 +321,7 @@ export function saveCourse(draft: CourseDraft): Course {
       id: l.id || `l-${now}-${i}`,
       title: l.title.trim() || `第 ${i + 1} 讲`,
       ...(l.url?.trim() ? { url: l.url.trim() } : {}),
+      ...(l.embedUrl?.trim() ? { embedUrl: l.embedUrl.trim() } : {}),
     })),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,

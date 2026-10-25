@@ -143,6 +143,7 @@ export default function CourseDetailPage() {
         <div className="space-y-2">
           {course.lessons.map((lesson, index) => {
             const learnedMin = byLesson.get(lesson.id) ?? 0;
+            const localHref = localPlayerHref(course, lesson);
             return (
               <div key={lesson.id} className="card p-3 flex items-center gap-3 hover:border-accent/40 transition-colors">
                 <span
@@ -173,6 +174,11 @@ export default function CourseDetailPage() {
                   <button className="btn-ghost btn-sm shrink-0" disabled title="请先编辑课程补充视频地址">
                     待补充
                   </button>
+                )}
+                {localHref && (
+                  <Link href={localHref} className="btn-ghost btn-sm shrink-0" title="用本地 mpv 高清播放，需运行 companion 伴生程序">
+                    本地高清
+                  </Link>
                 )}
               </div>
             );
@@ -220,4 +226,26 @@ function watchHref(course: Course, lesson: Lesson): string {
     courseTitle: course.title,
   });
   return `/watch?${sp.toString()}`;
+}
+
+/** B 站嵌入章节 → 本地 mpv 高清播放页（需要 companion 伴生程序） */
+function localPlayerHref(course: Course, lesson: Lesson): string | null {
+  if (!lesson.embedUrl) return null;
+  try {
+    const embed = new URL(lesson.embedUrl);
+    const bvid = embed.searchParams.get('bvid');
+    if (!bvid) return null;
+    const sp = new URLSearchParams({
+      bvid,
+      p: embed.searchParams.get('p') || '1',
+      title: lesson.title,
+      subject: course.subject,
+      courseId: course.id,
+      lessonId: lesson.id,
+      courseTitle: course.title,
+    });
+    return `/local-player?${sp.toString()}`;
+  } catch {
+    return null;
+  }
 }

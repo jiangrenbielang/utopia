@@ -54,6 +54,10 @@ function CoursesContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/local-player" className="btn-ghost">
+            <Icon name="play" className="w-4 h-4" />
+            本地高清
+          </Link>
           <Link href="/resources" className="btn-ghost">
             <Icon name="search" className="w-4 h-4" />
             资源库

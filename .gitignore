@@ -34,3 +34,16 @@ Thumbs.db
 *.log
 .tmp/
 video-acl-report/
+
+# ---- 本地高清伴生程序（运行时生成，不入库）----
+companion/.env
+companion/token.txt
+companion/data/
+companion/mpv/
+companion/mpv-portable/
+companion/bin/
+companion/__pycache__/
+companion/tests/__pycache__/
+companion/*.log
+# 本地伴生程序：仅保留在本地，不随仓库分发
+companion/

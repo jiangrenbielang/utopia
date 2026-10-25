@@ -2,8 +2,6 @@
 
 > 考研备考一体化工具：**移动端 App + Web 网课平台 + 安装包分发服务**。纯本地数据、无账号、无广告。
 
-Utopia 由原「研时记」升级而来，保留已有学习数据与安装标识。三端共享同一套学习记录口径与 JSON 备份格式。
-
 ## 项目介绍
 
 2026年10月25日我在B站看网课时苦于每次都要自己手动调进度，便想着能不能自己做一个播放器具有记忆功能，于是乌托邦个人考研网课平台诞生了。
@@ -104,6 +102,14 @@ cd app && npm run build:app && npx cap sync android
 ```
 
 APK 构建、签名与发布见 [backend/README.md](backend/README.md)。
+
+## 贡献者
+
+- **Utopia 作者**：[jiangrenbielang](https://github.com/jiangrenbielang)
+- **LibreTV 创作者**：[bestZwei](https://github.com/bestZwei)
+- **LibreTV 维护组织**：[LibreSpark](https://github.com/LibreSpark)
+
+感谢 [LibreTV](https://github.com/LibreSpark/LibreTV) 及其全体贡献者为 Web 端播放与聚合能力打下的基础。完整名单见 [CONTRIBUTORS.md](CONTRIBUTORS.md)。
 
 ## License
 

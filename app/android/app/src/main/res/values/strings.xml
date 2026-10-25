@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">研时记</string>
-    <string name="title_activity_main">研时记</string>
+    <string name="app_name">Utopia</string>
+    <string name="title_activity_main">Utopia</string>
     <string name="package_name">com.yanshiji.app</string>
     <string name="custom_url_scheme">com.yanshiji.app</string>
 </resources>

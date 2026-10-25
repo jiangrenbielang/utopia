@@ -1,81 +1,94 @@
-# 研时记
+# Utopia
 
-> **免费**的考研学习计时统计 App · 纯本地单机 · 无需联网 · 无账号 · 无广告
+> 考研备考一体化工具：**移动端 App + Web 网课平台 + 安装包分发服务**。纯本地数据、无账号、无广告。
 
-面向考研备考人群的单机学习计时统计软件：自定义目标考试日期倒计时、学习计时打卡、各学科时间占比统计、历史日志管理。**全部数据存在设备本地**，离线可用，卸载即失、可随时备份导出。
+Utopia 由原「研时记」升级而来，保留已有学习数据与安装标识。三端共享同一套学习记录口径与 JSON 备份格式。
 
-## 功能特性
+## 三端结构
 
-- 🗓️ 自定义目标考试日期倒计时（到期自动切换"已考完"）
-- ⏱️ 学习计时：科目选择、开始 / 暂停 / 结束、本次学习内容记录
-- 📊 统计图表：日 / 周 / 月维度、学科时长饼图占比、累计 / 日均时长
-- 📜 历史日志：按日期倒序、编辑 / 删除、指定日期筛选
-- 📝 手动补录（忘记计时也能补记）
-- 💾 JSON 备份导出 / 导入
-- 🔒 纯本地存储：无联网、无账号、无广告、无任何隐私收集
-
-## 截图
-
-| | | |
+| 目录 | 说明 | 技术 |
 |---|---|---|
-| ![首页](screenshots/01_homepage.png) | ![手动补录](screenshots/02_filling_manual_log.png) | ![统计饼图](screenshots/03_donut_ring_chart.png) |
-| ![历史日志](screenshots/04_history_logs.png) | ![深色模式](screenshots/05_dark_mode.png) | |
+| [app](app/) | Android / 移动端 App：倒计时、计时、统计、日志、补录、备份 | React 19 + Vite + Capacitor 8 |
+| [video](video/) | Web 网课平台：课程库、播放即计时、倒计时、统计、日志、资源库 | Next.js 15 + TypeScript + Tailwind |
+| [backend](backend/) | 安装包分发 + 移动端 Web 在线版托管 | Node 内置 http（零依赖） |
+| [docs](docs/) | 开发文档与产品规格 | Markdown |
+| [screenshots](screenshots/) | 移动端截图 | PNG |
 
-## 下载安装
+## 界面预览
 
-- **APK 安装包**：见页面右侧 **Release 发行版**（Android，装好后完全独立运行，无需电脑/网络）
-- Android 首次安装需开启「允许未知来源应用」，详见各品牌设置
-- 也支持直接以 **Web 在线版** 使用（见 backend 分发服务）
+| 移动端首页 | Web 学习台 |
+|---|---|
+| ![移动端首页](screenshots/01_homepage.png) | ![Web 学习台](video/docs/preview/home.png) |
 
-## 技术栈
+| 移动端统计 | Web 课程库 |
+|---|---|
+| ![移动端统计](screenshots/03_donut_ring_chart.png) | ![Web 课程库](video/docs/preview/courses.png) |
 
-- 前端：React (Vite) + Capacitor，数据存浏览器 localStorage
-- 打包：Android release APK，正式签名（密钥不入库）
-- 分发：`backend/` 零依赖 Node 服务（APK 下载 + Web 托管）
+## 快速开始（Windows）
 
-## 仓库结构
+双击根目录 **`启动.bat`**，按菜单选择：
 
-```
-研时记/
-├── 研时记-开发文档-完善版.md   # 开发依据文档（含技术选型/统计口径/边界用例）
-├── app/                        # 前端源码（React + Vite + Capacitor）
-│   ├── src/                    #   React 源码
-│   ├── dist/                   #   Web 在线版构建（base=/public/web/，供 backend 分发）
-│   ├── dist-capacitor/         #   原生 App 用的 Web 资源（base=/）
-│   ├── android/                #   Capacitor 生成的 Android 原生工程
-│   └── capacitor.config.json   #   Capacitor 配置
-└── backend/                    # 安装包分发服务（Node，零依赖）
-    ├── server.js               # 分发服务入口（下载页 + Web 在线版 + APK）
-    ├── publish.js              # 发布脚本（登记新版本 APK）
-    ├── public/index.html       # 移动端下载页
-    └── data/                   # versions.json + APK 存放目录
-```
+1. **Web 平台**：Next.js 网课平台，<http://localhost:8080>，访问密码见 `video/.env`（默认 `utopia2026`）。
+2. **Web 开发模式**：保存代码即热更新。
+3. **移动端 Web + APK 下载**：<http://localhost:8081>。
+4. **打开文档目录**。
 
-## 分工约定
-
-| 模块 | 负责方 | 说明 |
-|---|---|---|
-| 移动端 App（React + Capacitor） | 前端团队 | 界面 + 业务逻辑，纯本地存储（浏览器 localStorage），**不调用后端接口** |
-| 安装包分发服务（后端） | 本仓库 `backend/` | 负责 APK 下载分发 + Web 在线版托管 |
-
-前端与后端的唯一交集：前端构建出的 **APK** → `node backend/publish.js` 登记 → 用户下载页即可见（无需重启服务）。详见 [backend/README.md](backend/README.md) 的「前端打包契约」。
-
-## 手机安装路径（当前方案：真 APK）
-
-```
-app/ (React 源码) ──vite build──▶ dist-capacitor ──npx cap sync android──▶ android/ ──gradlew assembleRelease──▶ app-release.apk
-                                                                                                            │
-                            user 手机 ◀──下载安装── backend/data/apk ◀──node publish.js──┘
-```
-
-APK 重新构建流程：见 [backend/README.md](backend/README.md) 第四节。
-
-## 快速上手
+也可以直接进入子目录分别启动：
 
 ```bash
-# 分发服务（本地/局域网测试）
-cd backend
-node server.js
+# Web 平台
+cd video && npm install && npm run dev
+
+# 移动端开发
+cd app && npm install && npm run dev
+
+# 分发服务
+cd backend && node server.js
 ```
 
-正式分发需 HTTPS 域名，部署说明见 [backend/README.md](backend/README.md)。
+## 功能
+
+### 移动端
+
+倒计时、正计时 / 番茄钟、科目管理、圆环统计、每日趋势、打卡历、历史日志编辑删除、手动补录、JSON 备份导入导出、深色模式。
+
+### Web 网课平台
+
+课程库按 7 个考研科目组织，章节支持 m3u8 / mp4 直链；**播放即计时**，离开页面自动保存；另有自由计时、日/周/月统计、学习日志、考试倒计时、资源库聚合搜索与课程进度。
+
+### 分发服务
+
+APK 下载页、二维码、HTTPS 部署说明、版本登记脚本。
+
+## 数据与兼容
+
+- 移动端本地存储键保留 `yanshiji_*` 前缀；Web 端迁移到 `utopia:*` 并自动读取旧的 `yst:*` 数据。
+- 两端导出的备份 `app` 字段为 `Utopia`，导入同时兼容旧版「研时记」备份。
+- Android `applicationId` 保留 `com.yanshiji.app`，改名为 Utopia 后仍可覆盖升级旧安装。
+- 数据全部保存在浏览器 / 设备本地，不上传服务器。
+
+## 文档
+
+- [Utopia 开发文档](docs/Utopia-开发文档.md)（含数据模型、统计口径、边界用例）
+- [Web 端说明](video/README.md)
+- [移动端说明](app/README.md)
+- [分发与打包](backend/README.md)
+
+## 构建
+
+```bash
+# Web 生产构建
+cd video && npm run build && npm start
+
+# 移动端 Web 在线版（输出到 backend/public/web）
+cd app && npm run build:web
+
+# 移动端 Capacitor 资源
+cd app && npm run build:app && npx cap sync android
+```
+
+APK 构建、签名与发布见 [backend/README.md](backend/README.md)。
+
+## License
+
+移动端与分发服务沿用根目录 [LICENSE](LICENSE)；`video/` 为 LibreTV 衍生项目，遵循 AGPL-3.0-or-later（见 [video/LICENSE](video/LICENSE)）。

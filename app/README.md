@@ -1,16 +1,46 @@
-# React + Vite
+# Utopia 移动端
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Utopia 的 Android / 移动端：React 19 + Vite + Capacitor 8。倒计时、学习计时、统计图表、历史日志与本地备份，全部数据保存在设备本地。
 
-Currently, two official plugins are available:
+## 开发
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev        # http://localhost:5173
+```
 
-## React Compiler
+## 构建
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# 浏览器在线版（由 backend 托管到 /public/web/）
+npm run build:web
 
-## Expanding the Oxlint configuration
+# Capacitor 原生资源（base=/，供 Android 工程打包）
+npm run build:app
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+# 同步到 Android 工程（需已安装 Android SDK / JDK 21）
+npx cap sync android
+```
+
+APK 构建与发布流程见 [../backend/README.md](../backend/README.md)；分发服务入口为 `../backend/server.js`。
+
+## 目录
+
+- `src/pages/`：首页、计时、统计、日志四个 Tab
+- `src/components/`：倒计时、饼图、趋势图、打卡历、设置/备份/补录弹窗
+- `src/services/storage.js`：本地存储、备份格式、倒计时工具
+- `src/services/timerService.js`：计时状态机与心跳恢复
+- `android/`：Capacitor 生成的 Android 工程
+
+## 兼容性说明
+
+- **应用标识保留 `com.yanshiji.app`**：改名为 Utopia 后仍可覆盖升级已安装的旧版本，不会变成另一个 App。
+- **本地存储键沿用 `yanshiji_*` 前缀**：升级后历史学习记录、设置与心跳数据不丢失。
+- 导出备份的 `app` 字段为 `Utopia`，导入同时兼容旧版「研时记」备份。
+
+## 测试
+
+```bash
+node test_suite.mjs        # 纯 Node 单元/集成测试
+node simulate_user_test.mjs # 需要先启动 npm run dev（Edge + puppeteer-core）
+```

@@ -145,12 +145,12 @@ export default function HomePage({
         )}
       </div>
 
-      {/* 研语切切 · 备考励志金句卡片 */}
+      {/* 每日金句 · 备考励志金句卡片 */}
       <div className="card card-wood">
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
           <Sparkles size={16} color="var(--accent-gold)" />
           <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--accent-gold)' }}>
-            研语切切 · 每日灵感
+            每日金句 · 每日灵感
           </span>
         </div>
         <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.6, fontStyle: 'italic', marginBottom: '6px' }}>

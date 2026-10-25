@@ -1,4 +1,4 @@
-/* 研时记 · 计时器状态管理服务 (Timer Service) */
+/* Utopia · 计时器状态管理服务 (Timer Service) */
 import { saveTimerHeartbeat, getTimerHeartbeat, formatDate } from './storage';
 
 export const TIMER_STATUS = {

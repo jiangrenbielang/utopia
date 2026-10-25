@@ -1,7 +1,11 @@
-# ===== 研时记 .gitignore =====
-
 # ---- Node ----
 node_modules/
+
+# ---- Web (video) ----
+video/.next/
+video/.env
+video/.env*.local
+*.tsbuildinfo
 
 # ---- 前端构建产物（可再生）----
 app/dist/
@@ -15,18 +19,18 @@ app/android/app/build/
 app/android/capacitor-cordova-android-plugins/build/
 app/android/app/src/main/assets/public/
 app/android/local.properties
+app/android/keystore.properties
+app/android/app/*.keystore
 
-# ---- APK 产物（通过 GitHub Releases 分发，不入库）----
+# ---- APK（通过 Releases / backend 分发，不入库）----
 *.apk
 
-# ---- 签名密钥（绝不提交，泄露后他人可用你的身份签名安装包）----
-app/android/app/yanshiji-release.keystore
-app/android/keystore.properties
-
-# ---- IDE / 系统 ----
+# ---- IDE / 系统 / 临时 ----
 .idea/
-*.iml
 .vscode/
+*.iml
 .DS_Store
 Thumbs.db
 *.log
+.tmp/
+video-acl-report/

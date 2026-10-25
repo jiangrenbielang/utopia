@@ -33,7 +33,7 @@ async function runSimulatedUserTest() {
 
   try {
     // 1. 打开首页
-    console.log('▶ 1. 打开首页视图，检查倒计时卡片与研语切切卡片...');
+    console.log('▶ 1. 打开首页视图，检查倒计时卡片与每日金句卡片...');
     await page.goto(APP_URL, { waitUntil: 'networkidle0' });
     await page.screenshot({ path: `${SCREENSHOT_DIR}\\01_homepage.png` });
     console.log('  📸 已捕获截图: 01_homepage.png');
@@ -104,7 +104,7 @@ async function runSimulatedUserTest() {
     console.log('  📸 已捕获截图: 05_dark_mode.png (护眼深色模式外观)');
 
     console.log('\n==================================================');
-    console.log('  🎉 自动模拟用户测试全部顺利完成！截图存放在 D:\\研时记\\screenshots');
+    console.log('  🎉 自动模拟用户测试全部顺利完成！截图存放在 D:\\conection\\aixuexiAPP\\screenshots');
     console.log('==================================================\n');
 
   } catch (err) {

@@ -1,8 +1,8 @@
 {
-  "name": "yanshiji-install-server",
-  "version": "1.0.0",
+  "name": "utopia-install-server",
+  "version": "1.2.0",
   "private": true,
-  "description": "研时记 · APK 安装包分发服务（纯 Node 内置模块，零依赖）",
+  "description": "Utopia · APK 安装包分发服务（纯 Node 内置模块，零依赖）",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

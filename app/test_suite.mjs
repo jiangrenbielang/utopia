@@ -1,4 +1,4 @@
-/* 研时记 · 自动化测试套件 (Auto Test Suite) */
+/* Utopia · 自动化测试套件 (Auto Test Suite) */
 import { 
   calculateExamCountdown, 
   formatDate, 
@@ -32,7 +32,7 @@ function assert(condition, testName) {
 }
 
 console.log('==================================================');
-console.log('  🧪 开始执行「研时记」单元与集成自动化测试');
+console.log('  🧪 开始执行「Utopia」单元与集成自动化测试');
 console.log('==================================================\n');
 
 // 1. 测试考研目标倒计时计算
@@ -92,11 +92,11 @@ try {
   exportedData = JSON.parse(exportedJsonStr);
 } catch (e) {}
 
-assert(exportedData && exportedData.app === '研时记' && exportedData.records.length === 2, '导出 JSON 符合“研时记”规范且记录条数一致');
+assert(exportedData && exportedData.app === 'Utopia' && exportedData.records.length === 2, '导出 JSON 符合“Utopia”规范且记录条数一致');
 
 // 校验无效 JSON 拦截
 const invalidRes = importBackupJSON('{"app":"未知软件"}', 'merge');
-assert(!invalidRes.success, '导入非“研时记”格式 JSON 时，安全拦截并抛出错误提示');
+assert(!invalidRes.success, '导入非“Utopia”格式 JSON 时，安全拦截并抛出错误提示');
 
 // 测试合并模式去重
 const mergeRes = importBackupJSON(exportedJsonStr, 'merge');

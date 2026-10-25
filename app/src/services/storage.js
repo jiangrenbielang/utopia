@@ -1,5 +1,6 @@
-/* 研时记 · 数据存储与核心服务 (Storage Service) */
+/* Utopia · 数据存储与核心服务 (Storage Service) */
 
+// 存储键沿用旧前缀，保证改名前后的本地数据可直接延续
 const STORAGE_KEYS = {
   RECORDS: 'yanshiji_study_records_v1',
   CONFIG: 'yanshiji_app_config_v1',
@@ -208,7 +209,7 @@ export function exportBackupJSON() {
   const reflections = getReflections();
 
   const backupData = {
-    app: "研时记",
+    app: "Utopia",
     formatVersion: 1,
     exportedAt: new Date().toLocaleString(),
     config: {
@@ -236,8 +237,8 @@ export function exportBackupJSON() {
 export function importBackupJSON(jsonString, mode = 'merge') {
   try {
     const data = JSON.parse(jsonString);
-    if (!data || data.app !== "研时记" || !Array.isArray(data.records)) {
-      return { success: false, message: 'JSON 格式不符或缺少必要的 研时记 标识！' };
+    if (!data || (data.app !== "Utopia" && data.app !== "研时记") || !Array.isArray(data.records)) {
+      return { success: false, message: 'JSON 格式不符或缺少必要的 Utopia 标识（旧版「研时记」备份也兼容）！' };
     }
 
     // 校验记录有效性

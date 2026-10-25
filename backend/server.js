@@ -1,5 +1,5 @@
 /**
- * 研时记 · APK 安装包分发服务
+ * Utopia · APK 安装包分发服务
  *
  * 纯 Node 内置 http 模块实现，零第三方依赖、无需 npm install。
  *
@@ -195,7 +195,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log('==================================================');
-  console.log('  研时记 · 安装包分发服务已启动');
+  console.log('  Utopia · 安装包分发服务已启动');
   console.log(`  本机访问:     http://localhost:${PORT}/`);
   for (const name of Object.keys(os.networkInterfaces())) {
     for (const net of os.networkInterfaces()[name] || []) {

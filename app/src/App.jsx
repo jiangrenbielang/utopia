@@ -105,7 +105,7 @@ export default function App() {
         borderBottom: '1px solid var(--border-color)',
         padding: '12px 16px',
         display: 'flex',
-        justify: 'space-between',
+        justifyContent: 'space-between',
         alignItems: 'center',
         position: 'sticky',
         top: 0,
@@ -124,13 +124,13 @@ export default function App() {
             fontWeight: 800,
             fontSize: '0.85rem'
           }}>
-            研
+            U
           </div>
-          <span style={{ fontWeight: 800, fontSize: '1.05rem', letterSpacing: '0.5px' }}>研时记</span>
+          <span style={{ fontWeight: 800, fontSize: '1.05rem', letterSpacing: '0.5px' }}>Utopia</span>
         </div>
 
         <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 500 }}>
-          纯本地单机自用版
+          考研专注 · 纯本地
         </div>
       </header>
 

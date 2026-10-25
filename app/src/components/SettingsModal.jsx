@@ -189,11 +189,11 @@ export default function SettingsModal({ config, onUpdateConfig, onOpenBackup, on
           </div>
         </div>
 
-        {/* 5. 关于研时记 */}
+        {/* 5. 关于 Utopia */}
         <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--text-sub)', fontSize: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginBottom: '4px' }}>
             <ShieldCheck size={14} color="#10B981" />
-            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>研时记 v1.1（完善版）</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Utopia v1.2.0</span>
           </div>
           <p>单机纯本地存储 · 零广告 · 不联网申请</p>
         </div>

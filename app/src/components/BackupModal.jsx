@@ -14,7 +14,7 @@ export default function BackupModal({ onRefreshData, onClose }) {
     try {
       const jsonStr = exportBackupJSON();
       const nowStr = new Date().toISOString().slice(0, 10);
-      const fileName = `研时记_数据备份_${nowStr}.json`;
+      const fileName = `Utopia_数据备份_${nowStr}.json`;
 
       // 原生 App (Capacitor WebView)：a.download 无法触发系统下载，
       // 改为「写入应用文档目录 + 唤起系统分享面板」，由用户选择保存位置。
@@ -27,8 +27,8 @@ export default function BackupModal({ onRefreshData, onClose }) {
         });
         try {
           await Share.share({
-            title: '研时记数据备份',
-            text: '研时记学习数据备份，请选择「保存到文件」或发送到微信/网盘。',
+            title: 'Utopia 数据备份',
+            text: 'Utopia 学习数据备份，请选择「保存到文件」或发送到微信/网盘。',
             files: [result.uri],
             dialogTitle: '保存或发送备份文件'
           });

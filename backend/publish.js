@@ -1,5 +1,5 @@
 /**
- * 研时记 · 发布脚本
+ * Utopia · 发布脚本
  *
  * 前端团队构建出 APK 后，运行本脚本即可发布为「最新版」并生成版本清单。
  *
@@ -16,7 +16,7 @@
  *   --changelog   可选，可多次传，每行一条更新说明
  *
  * 效果:
- *   1. 把 APK 复制到 data/apk/ 并统一命名为 yanshiji-v<版本>-b<构建号>.apk
+ *   1. 把 APK 复制到 data/apk/ 并统一命名为 utopia-v<版本>-b<构建号>.apk
  *   2. 计算文件大小与 SHA-256，更新 data/versions.json
  */
 'use strict';
@@ -66,7 +66,7 @@ let manifest;
 try {
   manifest = JSON.parse(fs.readFileSync(VERSIONS_FILE, 'utf8'));
 } catch {
-  manifest = { app: { name: '研时记', packageName: 'com.yanshiji.app' }, versions: [] };
+  manifest = { app: { name: 'Utopia', packageName: 'com.yanshiji.app' }, versions: [] };
 }
 if (!Array.isArray(manifest.versions)) manifest.versions = [];
 
@@ -80,7 +80,7 @@ if (buildInput) {
 }
 
 // ---------- 复制并重命名 APK ----------
-const targetName = `yanshiji-v${version}-b${build}.apk`;
+const targetName = `utopia-v${version}-b${build}.apk`;
 const targetFile = path.join(APK_DIR, targetName);
 fs.copyFileSync(srcFile, targetFile);
 

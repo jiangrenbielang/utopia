@@ -42,9 +42,13 @@ export function Header() {
         // 桌面端（WCO）：整条顶栏即标题栏，可拖拽移动窗口
         'app-region-drag'
       )}
-      // 右侧给系统最小化/最大化/关闭按钮让位（--ut-titlebar-w 由首屏脚本注入；
-      // 浏览器端无此变量，回落为 0，外观不变）
-      style={{ paddingRight: 'var(--ut-titlebar-w, 0px)' }}
+      // 右侧给系统最小化/最大化/关闭按钮让位。用 WCO 标准环境变量计算按钮区宽度
+      // （titlebar-area 是排除系统按钮后的应用可控区）：视口宽 - area-x - area-width。
+      // 浏览器端 env 回落（x=100vw、width=0px）→ padding 0，外观不变；
+      // 桌面端随窗口状态（最大化/还原/DPI 变化）实时生效，无首屏时序依赖。
+      style={{
+        paddingRight: 'calc(100vw - env(titlebar-area-x, 100vw) - env(titlebar-area-width, 0px))',
+      }}
     >
       <div className={cn('mx-auto h-14 flex items-center gap-3', SHELL_WIDTH, SHELL_PADDING)}>
         {/* 朴素字标：TVBox 不做品牌渐变字，只用一个强调色句点点缀 */}

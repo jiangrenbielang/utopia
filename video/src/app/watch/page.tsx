@@ -17,6 +17,7 @@ const PlayerShell = dynamic(() => import('@/components/player-shell').then((m) =
 });
 import { EmptyState, LoadingState, Spinner } from '@/components/states';
 import { SwitchSourceModal } from '@/components/switch-source';
+import { TopDragBar } from '@/components/top-drag-bar';
 import ParseLines from '@/components/parse-lines';
 import { SkipMarkPanel } from '@/components/skip-mark-panel';
 import { skipMarkKey, validateSegment, type SkipSegment } from '@/lib/skip-marks';
@@ -385,6 +386,7 @@ function WatchContent() {
   if (sourceKey === 'embed' && !embedUrl) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
+        <TopDragBar />
         <div className="text-center max-w-md">
           <h1 className="text-content font-medium mb-2">B 站嵌入地址无效</h1>
           <p className="text-sm text-muted mb-4">
@@ -401,6 +403,7 @@ function WatchContent() {
   if (!source && !directUrl) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
+        <TopDragBar />
         <div className="text-center max-w-md">
           <h1 className="text-content font-medium mb-2">无法播放该视频</h1>
           <p className="text-sm text-muted mb-4">
@@ -425,7 +428,11 @@ function WatchContent() {
     <div className="min-h-screen flex flex-col">
       <header
         className="sticky top-0 z-40 bg-surface/90 backdrop-blur border-b border-line app-region-drag"
-        style={{ paddingRight: 'var(--ut-titlebar-w, 0px)' }}
+        // WCO 按钮区让位：视口宽 - titlebar-area-x - titlebar-area-width
+        //（浏览器 env 回落为 0；桌面端随窗口状态实时生效）
+        style={{
+          paddingRight: 'calc(100vw - env(titlebar-area-x, 100vw) - env(titlebar-area-width, 0px))',
+        }}
       >
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center gap-3 app-region-no-drag">
           <BackButton />

@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { syncNativeAppearance } from '@/lib/desktop-bridge';
 
 /**
  * 主题上下文：light / dark / system，持久化到 localStorage，默认 dark。
@@ -30,24 +31,12 @@ function systemPrefersDark(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-/**
- * 桌面客户端（Electron）：把解析后的主题同步到原生层。
- * nativeTheme 决定系统标题栏 / 滚动条 / 对话框颜色，不同步会出现
- * 「页面白色顶栏 + 系统深色标题栏」的割裂。浏览器环境静默跳过。
- */
-function syncNativeTheme(resolved: 'light' | 'dark'): void {
-  if (typeof window === 'undefined') return;
-  try {
-    void window.utopiaDesktop?.setNativeTheme?.(resolved === 'dark');
-  } catch {
-    /* 桥不可用（浏览器/旧版客户端）时忽略 */
-  }
-}
-
 function apply(choice: ThemeChoice): 'light' | 'dark' {
   const resolved = choice === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : choice;
   document.documentElement.classList.toggle('dark', resolved === 'dark');
-  syncNativeTheme(resolved);
+  // 原生外观同步（themeSource + WCO 按钮图标颜色）：在类切换完成后读取
+  // DOM 实况计算载荷，壁纸模式导致的「浅色主题 + 深色顶栏」也会被正确处理
+  syncNativeAppearance();
   return resolved;
 }
 

@@ -1,7 +1,7 @@
 # Utopia · Web 网课平台
 
 > Utopia 的 Web 端（Next.js）：按科目看网课，自动记录每一分钟学习时长。
-> 同仓库另有移动端（`../app`）与分发服务（`../backend`），统一入口见根目录 [README](../README.md)。
+> 桌面客户端见 [../desktop](../desktop)，统一入口见根目录 [README](../README.md)。
 
 基于 [LibreTV](https://github.com/LibreSpark/LibreTV) 二次开发的考研网课平台：**按科目看网课，自动记录每一分钟学习时长**。播放内核沿用 LibreTV，**数据源改为 TVBox「配置地址」驱动**（一份接口 JSON 即可带出点播站点、直播源、解析线路与壁纸），界面已从 LibreTV 的深蓝黑霓虹风改为 **TVBox 风格**（中性深色 + 海报网格 + 顶部分类 tab），并新增倒计时、学习计时、统计图表、学习日志与课程库。
 

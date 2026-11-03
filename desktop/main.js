@@ -47,6 +47,24 @@ let webServer = null;
 let mainWindow = null;
 let settingsWindow = null;
 let quitting = false;
+/** 最近一次页面同步来的顶栏深浅（WCO 图标颜色依据；null = 尚未同步过 */
+let lastHeaderDark = null;
+
+/**
+ * WCO 覆盖层设置：底色全透明（玻璃顶栏透出材质），仅按钮图标按顶栏深浅取反色
+ * ——深色顶栏白图标、浅色顶栏近黑图标，保证最小化/最大化/关闭始终可见。
+ */
+function applyTitleBarOverlay(win, headerDark) {
+  if (!IS_WINDOWS) return;
+  try {
+    win.setTitleBarOverlay({
+      color: '#00000000',
+      symbolColor: headerDark ? '#ffffff' : '#141416',
+    });
+  } catch (error) {
+    log('set title bar overlay failed', String(error?.message || error));
+  }
+}
 
 function log(...args) {
   const line = `[${new Date().toISOString()}] ${args.map((x) => String(x)).join(' ')}`;
@@ -259,7 +277,7 @@ function createWindow() {
           backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f11' : '#f5f5f7',
         }),
     // 顶栏即标题栏：隐藏系统标题栏，窗口控制按钮以覆盖层浮在应用顶栏（高 56 = h-14）右侧；
-    // 覆盖层底色全透明，仅按钮图标按主题取色（切换时经 setTitleBarOverlay 刷新）
+    // 覆盖层底色全透明，仅按钮图标按主题取色（页面首屏同步后会按顶栏实际深浅刷新）
     ...(IS_WINDOWS && {
       titleBarStyle: 'hidden',
       titleBarOverlay: {
@@ -281,6 +299,15 @@ function createWindow() {
     log('main window closed');
     mainWindow = null;
   });
+  // 最大化/还原时重设 WCO 覆盖层：部分 Windows 版本在窗口状态切换时会
+  // 丢弃覆盖层的自定义颜色（图标变回默认色甚至消失），显式重设兜底。
+  // lastHeaderDark 为 null（页面尚未同步）时沿用创建时的系统主题判定。
+  const reassertOverlay = () => {
+    const dark = lastHeaderDark == null ? nativeTheme.shouldUseDarkColors : lastHeaderDark;
+    applyTitleBarOverlay(mainWindow, dark);
+  };
+  mainWindow.on('maximize', reassertOverlay);
+  mainWindow.on('unmaximize', reassertOverlay);
   mainWindow.webContents.on('did-finish-load', () => {
     log('did-finish-load', mainWindow?.webContents.getURL());
   });
@@ -325,35 +352,54 @@ function registerIpc() {
    * glass 标志告知页面可以启用玻璃标题栏样式（.glass-titlebar）。
    * 非桌面 / 非 WCO 环境返回 null，页面回落为浏览器外观。
    */
+  /**
+   * WCO 与玻璃能力查询（同步）：
+   * - Electron 45 没有 getTitleBarOverlayRect API，WCO 几何由渲染层的标准
+   *   CSS 环境变量 env(titlebar-area-*) 直接提供（Header 让位计算用它）；
+   * - 这里只返回玻璃材质能力（Win11 22H2+），供首屏脚本决定是否给 <html>
+   *   加 .glass-titlebar（启用玻璃顶栏样式）。
+   * 非桌面环境返回 null，页面回落为浏览器外观。
+   */
   ipcMain.on('desktop:titlebar-info', (event) => {
     try {
-      const rect = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getTitleBarOverlayRect() : null;
-      event.returnValue = rect ? { width: rect.width, height: rect.height, glass: GLASS_SUPPORTED } : null;
+      event.returnValue = { glass: GLASS_SUPPORTED };
     } catch {
       event.returnValue = null;
     }
   });
   /**
-   * 页面主题 → 原生主题同步：渲染层切亮/暗时把 nativeTheme 一并切过去，
-   * 系统控件（滚动条、对话框、WCO 按钮图标）才会跟页面同色。
-   * 同时刷新窗口底色（非玻璃模式防刷新闪深色）与 WCO 覆盖层图标颜色。
+   * 页面外观 → 原生层同步。载荷两种形式：
+   * - 旧式：boolean（按主题亮暗）或 'system'（恢复跟随操作系统）；
+   * - 对象：{ theme: boolean|'system', headerDark: boolean }。
+   *   headerDark 是**顶栏的实际深浅**（壁纸模式强制深色 HUD，即便主题为浅），
+   *   决定 WCO 按钮（最小化/最大化/关闭）的图标颜色——图标与顶栏同色系
+   *   会在玻璃顶栏上「隐形」，必须按顶栏实际深浅取反色。
+   *
+   * themeSource（系统对话框/滚动条配色）跟随 theme；'system' 时恢复粘性源。
+   * 同时刷新窗口底色（非玻璃模式防刷新闪深色）与 WCO 覆盖层。
    */
-  ipcMain.handle('desktop:set-native-theme', (_event, dark) => {
+  ipcMain.handle('desktop:set-native-theme', (_event, payload) => {
     try {
-      nativeTheme.themeSource = dark ? 'dark' : 'light';
+      const isObject = payload !== null && typeof payload === 'object';
+      const theme = isObject ? payload.theme : payload;
+      const headerDarkSpecified = isObject && typeof payload.headerDark === 'boolean';
+      const isSystem = theme === 'system';
+      const themeDark = isSystem ? nativeTheme.shouldUseDarkColors : theme === true;
+      const headerDark = headerDarkSpecified ? payload.headerDark : themeDark;
+
+      if (isSystem) {
+        nativeTheme.themeSource = 'system';
+      } else {
+        nativeTheme.themeSource = themeDark ? 'dark' : 'light';
+      }
+      lastHeaderDark = headerDark;
       if (mainWindow && !mainWindow.isDestroyed()) {
         if (!GLASS_SUPPORTED) {
-          mainWindow.setBackgroundColor(dark ? '#0f0f11' : '#f5f5f7');
+          mainWindow.setBackgroundColor(themeDark ? '#0f0f11' : '#f5f5f7');
         }
-        if (IS_WINDOWS) {
-          // WCO 覆盖层图标色随主题：深色顶栏白图标、浅色顶栏近黑图标
-          mainWindow.setTitleBarOverlay({
-            color: '#00000000',
-            symbolColor: dark ? '#ffffff' : '#141416',
-          });
-        }
+        applyTitleBarOverlay(mainWindow, headerDark);
       }
-      log(`native theme -> ${dark ? 'dark' : 'light'}`);
+      log(`native appearance -> ${isSystem ? 'system' : themeDark ? 'dark' : 'light'} (header ${headerDark ? 'dark' : 'light'})`);
     } catch (error) {
       log('native theme sync failed', String(error?.message || error));
     }

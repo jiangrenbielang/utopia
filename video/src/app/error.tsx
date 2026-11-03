@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { ErrorState } from '@/components/states';
+import { TopDragBar } from '@/components/top-drag-bar';
 
 /**
  * 路由段级错误边界：捕获页面渲染/数据异常，避免落到 Next 默认英文白屏。
@@ -21,6 +22,7 @@ export default function ErrorPage({
 
   return (
     <div className="min-h-screen flex flex-col">
+      <TopDragBar />
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-xl">
           <ErrorState

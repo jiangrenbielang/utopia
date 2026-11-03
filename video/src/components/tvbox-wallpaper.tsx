@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
+import { syncNativeAppearance } from '@/lib/desktop-bridge';
 import {
   clampWallpaperDim,
   createWallpaperUrl,
@@ -90,11 +91,18 @@ export default function TvboxWallpaper() {
    * 把「当前是否有壁纸」同步到 <html>，供 globals.css 的玻璃化规则使用
    * （`html.has-wallpaper .card { 半透明 + backdrop-blur }`）。
    * 关掉壁纸时类会被移除，界面回到原来的实色外观。
+   *
+   * 壁纸模式会把整页强制成深色玻璃 HUD（含顶栏），WCO 窗口按钮的图标
+   * 颜色依赖顶栏深浅——所以类切换后需要重新同步原生外观。
    */
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle('has-wallpaper', Boolean(url));
-    return () => root.classList.remove('has-wallpaper');
+    syncNativeAppearance();
+    return () => {
+      root.classList.remove('has-wallpaper');
+      syncNativeAppearance();
+    };
   }, [url]);
 
   if (!url) return null;

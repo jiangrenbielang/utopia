@@ -1,8 +1,0 @@
-{
-  "appId": "com.yanshiji.app",
-  "appName": "Utopia",
-  "webDir": "dist-capacitor",
-  "server": {
-    "androidScheme": "https"
-  }
-}

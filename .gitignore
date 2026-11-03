@@ -68,3 +68,6 @@ video/.utopia-data/
 video/*澶嶄範璁″垝*.md
 video/Utopia澶嶄範璁″垝瀵煎叆-*.json
 backup-personal-plan/
+
+# ---- 旧架构本地备份（已从仓库移除，仅本地留存）----
+.legacy-backup/

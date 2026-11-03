@@ -39,15 +39,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
-        {/* 首屏前同步主题，避免亮暗闪烁；桌面端顺带同步 Electron 原生主题（标题栏颜色）
-            并读取 WCO 覆盖层几何（--ut-titlebar-w/h）与玻璃能力标记：
+        {/* 首屏前同步主题，避免亮暗闪烁；桌面端顺带同步 Electron 原生外观
+            （themeSource + WCO 按钮图标颜色，图标颜色按顶栏实际深浅取反色——
+            壁纸模式强制深色顶栏时图标必须白色）并标记桌面环境：
             - .os-desktop：preload 桥存在（桌面客户端）
-            - .glass-titlebar：WCO + Win11 亚克力材质可用，顶栏切换为玻璃样式
-            两个类都在 <html> 上，globals.css 按类启用桌面专属规则；浏览器端全不生效 */}
+            - .glass-titlebar：Win11 玻璃材质可用，顶栏切换为玻璃样式
+            （按钮区让位用标准 env(titlebar-area-*)，在 Header 内联样式中计算） */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var h=document.documentElement;var r=h.style;var b=window.utopiaDesktop;if(b&&b.titleBarInfo){h.classList.add('os-desktop');var t=b.titleBarInfo();if(t&&t.width){r.setProperty('--ut-titlebar-w',t.width+'px');r.setProperty('--ut-titlebar-h',t.height+'px');if(t.glass)h.classList.add('glass-titlebar')}}var c=localStorage.getItem('libretv-theme')||'dark';var d=c==='dark'||(c==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);h.classList.toggle('dark',d);if(b&&b.setNativeTheme)b.setNativeTheme(d);}catch(e){}})()",
+              "(function(){try{var h=document.documentElement;var b=window.utopiaDesktop;if(b&&b.titleBarInfo){h.classList.add('os-desktop');var t=b.titleBarInfo();if(t&&t.glass)h.classList.add('glass-titlebar')}var c=localStorage.getItem('libretv-theme')||'dark';var d=c==='dark'||(c==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);h.classList.toggle('dark',d);if(b&&b.setNativeTheme){var hd=d;try{hd=d||h.classList.contains('has-wallpaper')}catch(e){}b.setNativeTheme({theme:c==='system'?c:d,headerDark:hd})}}catch(e){}})()",
           }}
         />
       </head>

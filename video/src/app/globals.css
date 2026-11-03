@@ -350,47 +350,12 @@ html.has-wallpaper .hover\:bg-hover\/80:hover {
  * - .app-region-drag / .app-region-no-drag：app-region 工具类。drag 区内的
  *   交互元素（链接、按钮）必须显式 no-drag，否则点击会被拖拽吞掉。
  * - 玻璃材质（Win11 acrylic）：主进程以透明窗口 + backgroundMaterial:'acrylic'
- *   创建。页面里只让顶栏一条透出材质——顶栏自身用近全透明底 + 强模糊，
- *   桌面背景经系统亚克力采样后与 backdrop-blur 叠加，形成真实玻璃观感；
- *   正文仍铺实色（html 底色），保证内容可读性。
- * - 浏览器无 --ut-titlebar-w（默认 0px），相关规则不影响 Web 端。
- */
-
-:root {
-  --ut-titlebar-w: 0px;
-  --ut-titlebar-h: 0px;
-}
-
-@layer utilities {
-  .app-region-drag {
-    -webkit-app-region: drag;
-    app-region: drag;
-  }
-  .app-region-no-drag {
-    -webkit-app-region: no-drag;
-    app-region: no-drag;
-  }
-}
-
-/*
- * ============ 桌面端标题栏（WCO + 玻璃材质） ============
- *
- * 桌面客户端隐藏了系统标题栏：应用顶栏承担标题栏职责（可拖拽移动窗口），
- * 最小化/最大化/关闭以系统覆盖层浮在顶栏右侧。
- *
- * - .app-region-drag / .app-region-no-drag：app-region 工具类。drag 区内的
- *   交互元素（链接、按钮）必须显式 no-drag，否则点击会被拖拽吞掉。
- * - 玻璃材质（Win11 acrylic）：主进程以透明窗口 + backgroundMaterial:'acrylic'
  *   创建，并把 .os-desktop.glass-titlebar 类加到 <html>（preload 桥 + 玻璃支持
  *   检测通过时，见 layout 首屏脚本）。顶栏自身用近全透明底 + 强模糊，
  *   桌面背景经系统亚克力采样后透出，形成真实玻璃观感；正文仍铺实色。
- * - 浏览器无 .os-desktop，这些规则全部不生效，Web 端外观不变。
+ * - 浏览器无 .os-desktop，这些规则全部不生效；按钮区让位用标准
+ *   env(titlebar-area-*)（见 Header 内联样式），无自定义变量。
  */
-
-:root {
-  --ut-titlebar-w: 0px;
-  --ut-titlebar-h: 0px;
-}
 
 @layer utilities {
   .app-region-drag {

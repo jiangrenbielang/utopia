@@ -1,10 +1,11 @@
 'use client';
 
-import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload, QualityProbeItem, QualityProbeResult } from './types';
+import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, SourceListPayload, QualityProbeItem, QualityProbeResult } from './types';
+import type { CategoryClassesResponse, CategoryListResponse } from './cms-category';
+import type { ParseOutcome } from './parse-url';
 
 /**
- * 客户端 API 封装。401 时触发全局事件打开登录框，
- * 替代旧版在每个函数里手工检查 isPasswordVerified 的散弹式写法。
+ * 客户端 API 封装：统一的 JSON / NDJSON 传输与错误包装。
  */
 
 export class ApiError extends Error {
@@ -15,46 +16,8 @@ export class ApiError extends Error {
   }
 }
 
-const UNAUTHORIZED_EVENT = 'libretv:unauthorized';
-
-/** 单条测活结果（/api/live/probe，JSON 与 NDJSON 流共用同一结构） */
-export interface LiveProbeResult {
-  url: string;
-  ok: boolean;
-  status?: number;
-  /** 分片级探测：仅统计分片往返耗时 */
-  ms?: number;
-  /** segment=分片级（最可信）/ manifest=仅列表可达 / head=直链单级 */
-  level?: 'segment' | 'manifest' | 'head';
-  error?: string;
-  /** master playlist 的 CODECS，用于前端提示 H.265 等不可解码情况 */
-  codec?: string;
-  /** 因超时失败：源可能只是慢，前端以琥珀色区分于真正的不可达 */
-  timedOut?: boolean;
-  /** 分片吞吐估算（kbps）：低于阈值的源前端标记为「源限速」 */
-  kbps?: number;
-}
-
-/** /api/status 的 React Query key：Providers 与 AuthProvider 共用，避免同一页面重复请求 */
+/** /api/status 的 React Query key：供需要读取站点状态的页面共用，避免重复请求 */
 export const STATUS_QUERY_KEY = ['app-status'] as const;
-
-export function onUnauthorized(handler: (event: CustomEvent) => void): () => void {
-  const wrapped = (e: Event) => handler(e as CustomEvent);
-  window.addEventListener(UNAUTHORIZED_EVENT, wrapped);
-  return () => window.removeEventListener(UNAUTHORIZED_EVENT, wrapped);
-}
-
-/** 401/503 统一处理：分发全局事件打开登录框并抛 ApiError（普通与流式请求共用） */
-function throwForAuthStatus(res: Response): void {
-  if (res.status === 401) {
-    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
-    throw new ApiError('需要登录', 401);
-  }
-  if (res.status === 503) {
-    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: 'setup' }));
-    throw new ApiError('服务器未配置密码', 503);
-  }
-}
 
 /** NDJSON 流读取：按行解析 JSON 并回调，坏行跳过不影响其余结果 */
 async function consumeNdjson<T>(res: Response, onEvent: (event: T) => void): Promise<void> {
@@ -93,7 +56,6 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
     throw new ApiError('网络请求失败，请检查网络连接', 0);
   }
-  throwForAuthStatus(res);
   if (!res.ok) {
     let msg = `请求失败 (${res.status})`;
     try {
@@ -105,17 +67,90 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export const api = {
-  status: () => request<AuthStatusResponse>('/api/status'),
+/**
+ * `/api/parse` 的响应。
+ *
+ * 用 `ok` + `kind` 而不是「成功/异常」二分：`needs-browser` 是**可预期的正常结果**
+ * （该线路是浏览器嗅探类），把它当错误会让用户以为线路坏了。
+ */
+export type ParseResponse =
+  | { ok: true; kind: 'resolved'; url: string; header?: Record<string, string> }
+  | {
+      ok: false;
+      kind: Exclude<ParseOutcome['kind'], 'resolved'>;
+      message: string;
+      /** 上游 HTTP 状态，便于区分「线路挂了」与「线路跑不了」 */
+      upstreamStatus?: number;
+    };
 
-  login: (password: string) =>
-    request<{ success: boolean }>('/api/auth', {
+/** 百度网盘绑定状态（服务端只回报是否已绑定，不回报令牌） */
+export interface NetdiskStatus {
+  configured: boolean;
+  redirectUri?: string;
+}
+
+/** 网盘目录条目 */
+export interface NetdiskEntry {
+  fsId: number;
+  name: string;
+  path: string;
+  isDir: boolean;
+  size: number;
+  /** 容器是 mp4 / m3u8 / ts —— 浏览器可解码 */
+  playable: boolean;
+  modified?: string;
+}
+
+/**
+ * 网盘视频的播放地址（本平台同源，服务端带百度要求的 UA 转发并支持 Range）。
+ *
+ * 额外带上 `name`：播放器据此判断这是 mp4 还是 m3u8（决定走原生播放还是 hls.js），
+ * 也方便排查问题时一眼看出是哪一讲。
+ */
+export function netdiskStreamUrl(fsId: number, name?: string): string {
+  const suffix = name ? `&name=${encodeURIComponent(name)}` : '';
+  return `/api/netdisk/stream?fsid=${fsId}${suffix}`;
+}
+
+export const api = {
+  /** 百度网盘绑定状态 */
+  netdiskStatus: (signal?: AbortSignal) => request<NetdiskStatus>('/api/netdisk/status', { signal }),
+
+  /** 取授权链接（百度页面直接显示授权码） */
+  netdiskAuthUrl: (signal?: AbortSignal) =>
+    request<{ url: string; redirectUri: string }>('/api/netdisk/auth-url', { signal }),
+
+  /** 提交授权码，服务端换取并保存 refresh_token */
+  netdiskSubmitCode: (code: string, redirectUri?: string) =>
+    request<{ configured: boolean }>('/api/netdisk/code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ code, redirectUri }),
     }),
 
-  logout: () => request<{ success: boolean }>('/api/auth', { method: 'DELETE' }),
+  /** 列网盘目录 */
+  netdiskList: (dir: string, signal?: AbortSignal) =>
+    request<{ dir: string; entries: NetdiskEntry[] }>('/api/netdisk/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dir }),
+      signal,
+    }),
+
+  /** 递归扫描目录里的视频（服务端已按自然序排好），用于「目录 → 课程章节」 */
+  netdiskScan: (dir: string, signal?: AbortSignal) =>
+    request<{ dir: string; count: number; truncated: boolean; scannedDirs: number; videos: NetdiskEntry[] }>(
+      '/api/netdisk/scan',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dir }),
+        signal,
+      }
+    ),
+
+  /** 解绑 */
+  netdiskLogout: () => request<{ configured: boolean }>('/api/netdisk/logout', { method: 'POST' }),
 
   /**
    * 聚合搜索。传入 onSource 时走 /api/search?stream=1 的 NDJSON 流：
@@ -171,7 +206,6 @@ export const api = {
       if (err instanceof DOMException && err.name === 'AbortError') throw err;
       throw new ApiError('探测请求没能送达服务器（网络或反向代理中断）', 0);
     }
-    throwForAuthStatus(res);
     if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
 
     let firstByte = false;
@@ -235,6 +269,52 @@ export const api = {
     return request<SourceListPayload>(`/api/source-list?${sp.toString()}`);
   },
 
+  /**
+   * 分类浏览（TVBox 范式）：站点 → 分类 → 筛选 → 分页。
+   * 站点的 api 地址直接来自已导入的点播源（`SourceConfig.url`）。
+   */
+
+  /** 分类 tab 数据源（`class=1`）：分类列表 + 该站点的筛选定义 */
+  categoryClasses: (url: string, signal?: AbortSignal) => {
+    const sp = new URLSearchParams({ url, class: '1' });
+    return request<CategoryClassesResponse>(`/api/category?${sp.toString()}`, { signal });
+  },
+
+  /** 某分类的分页列表；`filters` 传当前筛选键值对（服务端序列化为 JSON 透传上游） */
+  category: (
+    url: string,
+    opts: {
+      classId?: string;
+      page?: number;
+      filters?: Record<string, string>;
+      /** true 表示保留成人内容（默认沿用站内口径：过滤） */
+      adult?: boolean;
+    } = {},
+    signal?: AbortSignal
+  ) => {
+    const sp = new URLSearchParams({ url });
+    if (opts.classId) sp.set('t', opts.classId);
+    if (opts.page !== undefined) sp.set('pg', String(opts.page));
+    if (opts.filters && Object.keys(opts.filters).length > 0) sp.set('f', JSON.stringify(opts.filters));
+    if (opts.adult) sp.set('adult', '1');
+    return request<CategoryListResponse>(`/api/category?${sp.toString()}`, { signal });
+  },
+
+  /**
+   * 用一条 TVBOX 解析线路换真实播放地址。
+   *
+   * 注意结果用 `ok` + `kind` 区分：`needs-browser` 表示该线路返回的是播放页
+   * （需要浏览器执行脚本嗅探媒体请求），本客户端跑不了——这不是请求失败，
+   * 调用方应按「该线路不适用」提示，而不是当错误弹。
+   */
+  parse: (parseUrl: string, target: string, signal?: AbortSignal) =>
+    request<ParseResponse>('/api/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parseUrl, target }),
+      signal,
+    }),
+
   /** 把源列表发布到公开粘贴板换回订阅链接（走服务端代理：绕开 CORS，且目标域名固定不可控） */
   publishSourceList: (payload: {
     name?: string;
@@ -247,20 +327,13 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  /** —— 直播 / IPTV —— */
+  /** —— 直播 / IPTV（订阅管理与导出） —— */
 
   /** 拉取并解析 M3U 订阅；force=1 跳过服务端缓存 */
   livePlaylist: (url: string, force = false, signal?: AbortSignal) => {
     const sp = new URLSearchParams({ url });
     if (force) sp.set('force', '1');
     return request<LivePlaylistResponse>(`/api/live/playlist?${sp.toString()}`, { signal });
-  },
-
-  /** 查询某频道的节目单（服务端缓存 6h） */
-  liveEpg: (epgUrl: string, tvgId: string, force = false, signal?: AbortSignal) => {
-    const sp = new URLSearchParams({ url: epgUrl, channel: tvgId });
-    if (force) sp.set('force', '1');
-    return request<LiveEpgResponse>(`/api/live/epg?${sp.toString()}`, { signal });
   },
 
   /** 直播订阅探活：以拉取解析耗时与频道数衡量可用性 */
@@ -279,39 +352,6 @@ export const api = {
     const sp = new URLSearchParams({ url, format: 'm3u' });
     return `/api/live/playlist?${sp.toString()}`;
   },
-
-  /** 批量测活：分片级探测频道可达性与延迟（单批最多 50 条） */
-  liveProbe: (urls: string[], signal?: AbortSignal) =>
-    request<{ results: LiveProbeResult[] }>(
-      '/api/live/probe',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls }),
-        signal,
-      }
-    ),
-
-  /**
-   * 流式测活：服务端以 NDJSON 逐条推送（命中缓存的立即返回），
-   * 结果边测边回调，列表状态点可以边测边亮。
-   */
-  liveProbeStream: async (
-    urls: string[],
-    onResult: (result: LiveProbeResult) => void,
-    signal?: AbortSignal
-  ): Promise<void> => {
-    const res = await fetch('/api/live/probe?stream=1', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls }),
-      signal,
-    });
-    throwForAuthStatus(res);
-    if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
-
-    await consumeNdjson<LiveProbeResult>(res, onResult);
-  },
 };
 
 export interface SearchFailure {
@@ -320,7 +360,7 @@ export interface SearchFailure {
   timedOut?: boolean;
 }
 
-/** 聚合搜索流式消费：逐源回调 + 最终聚合结果（NDJSON 行协议，同 liveProbeStream） */
+/** 聚合搜索流式消费：逐源回调 + 最终聚合结果（NDJSON 行协议） */
 async function searchStream(
   wd: string,
   sources: SourceConfig[],
@@ -334,7 +374,6 @@ async function searchStream(
     body: JSON.stringify({ wd, sources, filterAdult }),
     signal,
   });
-    throwForAuthStatus(res);
     if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
 
     // done 事件缺失（流被截断）时退化为空结果，不让整次搜索报错

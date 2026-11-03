@@ -17,14 +17,15 @@ const PlayerShell = dynamic(() => import('@/components/player-shell').then((m) =
 });
 import { EmptyState, LoadingState, Spinner } from '@/components/states';
 import { SwitchSourceModal } from '@/components/switch-source';
+import ParseLines from '@/components/parse-lines';
 import { SkipMarkPanel } from '@/components/skip-mark-panel';
 import { skipMarkKey, validateSegment, type SkipSegment } from '@/lib/skip-marks';
 import type { PlayerSkipApi } from '@/components/player-shell';
 import { useToast } from '@/components/toast';
 import { enqueueDownload } from '@/components/download-manager';
 import { Icon } from '@/components/icon';
-import { useAuth } from '@/components/auth';
 import { resolveSource, useAppStore } from '@/lib/store';
+import { resolveResumePosition } from '@/lib/resume';
 import { qualityKey } from '@/lib/quality';
 import {
   clearProgress,
@@ -59,7 +60,6 @@ function WatchContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const store = useAppStore();
-  const { verified, openLogin } = useAuth();
   const { toast } = useToast();
 
   const sourceKey = searchParams.get('source') || '';
@@ -81,6 +81,13 @@ function WatchContent() {
   const [reversed, setReversed] = useState(false);
   const [switchOpen, setSwitchOpen] = useState(false);
   const [skipPanelOpen, setSkipPanelOpen] = useState(false);
+  /**
+   * 解析线路给出的播放地址（临时覆盖当前集地址）。
+   *
+   * 只覆盖**播放器用的那个地址**，不改 URL 参数、不动剧集列表、也不动进度/历史所依据的 key：
+   * 解析是「换一条取流路径」，不该改变「在看第几集」，更不该让学习进度错位。
+   */
+  const [parsedOverride, setParsedOverride] = useState<string | null>(null);
   // 播放器对外暴露的精确时间读取接口（「记录当前」用），随播放器卸载置空
   const playerApiRef = useRef<PlayerSkipApi | null>(null);
   // 播放框：小屏「跳过标记」抽屉要按它的底边算剩余高度，避免压住画面
@@ -124,7 +131,7 @@ function WatchContent() {
   const detailQuery = useQuery({
     queryKey: ['detail', sourceKey, vodId, source?.url],
     queryFn: ({ signal }) => api.detail(vodId, source!, signal),
-    enabled: Boolean(source && vodId && verified),
+    enabled: Boolean(source && vodId),
     staleTime: 5 * 60_000,
   });
 
@@ -145,6 +152,20 @@ function WatchContent() {
     return indexParam;
   }, [episodes, indexParam]);
 
+  /** 播放器实际使用的地址：解析成功后临时覆盖当前集地址（见 parsedOverride 的说明） */
+  const effectiveUrl = parsedOverride || currentUrl;
+
+  /**
+   * 续播与进度落盘的稳定键。
+   *
+   * - 采集站：`vodId`（+集数）—— 换解析线路不该改「看到哪」；
+   * - 课程章节：`lessonId` 已并入 `vodId`（见上方定义），同一讲永远同一键；
+   * - **纯直链（含「网盘」页的 `/api/netdisk/stream?fsid=…`）** 没有 id，
+   *   以前这里直接放弃落盘，导致网盘视频每次从头开始。现在退回用地址本身作键：
+   *   fsid 地址对同一个文件是稳定的，因此同样能续播。
+   */
+  const progressKeyId = vodId || currentUrl;
+
   // 跳过片段按剧名记忆：换集不变，换源到同名资源也能命中。
   // 标题缺失（直连链接）时退回 source:vodId，至少保证本源本片可用。
   const skipMarkFallback = `${sourceKey}:${vodId || currentUrl}`;
@@ -159,6 +180,8 @@ function WatchContent() {
   const [pendingStart, setPendingStart] = useState<number | null>(null);
   // 换集清空中段两步态：起点属于上一集，不能和新集的位置拼成区间
   useEffect(() => setPendingStart(null), [sourceKey, vodId, currentIndex]);
+  // 换集/换源/换片后清掉解析覆盖：它属于上一集的那次解析，不能带到新的一集
+  useEffect(() => setParsedOverride(null), [sourceKey, vodId, currentIndex]);
 
   const goEpisode = useCallback(
     (index: number) => {
@@ -175,14 +198,14 @@ function WatchContent() {
   const getRestorePosition = useCallback(async () => {
     const urlPos = parseInt(searchParams.get('position') || '0', 10) || 0;
     if (urlPos > 0) return urlPos;
-    if (!vodId) return 0;
-    const entry = await db.progress.get(progressKeyOf(sourceKey, vodId, currentIndex));
-    return entry?.position ?? 0;
-  }, [searchParams, sourceKey, vodId, currentIndex]);
+    if (!progressKeyId) return 0;
+    const entry = await db.progress.get(progressKeyOf(sourceKey, progressKeyId, currentIndex));
+    return resolveResumePosition(entry);
+  }, [searchParams, sourceKey, progressKeyId, currentIndex]);
 
   // 写入观看历史（进入页面即记录，进度后续增量更新）
   useEffect(() => {
-    if (!verified || !sourceKey || !currentUrl) return;
+    if (!sourceKey || !currentUrl) return;
     const timer = setTimeout(() => {
       upsertHistory({
         sourceKey,
@@ -199,7 +222,7 @@ function WatchContent() {
     }, 2000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verified, sourceKey, vodId, currentIndex, videoTitle, currentUrl]);
+  }, [sourceKey, vodId, currentIndex, videoTitle, currentUrl]);
 
   // —— 网课学习计时：累计真实播放时长，离开页面自动保存 ——
   const studyStartRef = useRef(Date.now());
@@ -294,12 +317,12 @@ function WatchContent() {
       }
       lastPosRef.current = position;
 
-      if (vodId) {
-        saveProgress(sourceKey, vodId, currentIndex, position, duration).catch(() => {});
+      if (progressKeyId) {
+        saveProgress(sourceKey, progressKeyId, currentIndex, position, duration).catch(() => {});
         updateHistoryProgress(sourceKey, vodId || currentUrl, position, duration).catch(() => {});
       }
     },
-    [sourceKey, vodId, currentIndex, currentUrl]
+    [sourceKey, vodId, currentIndex, currentUrl, progressKeyId]
   );
 
   // 自动连播的 800ms 延迟切集要在卸载时取消，避免离开页面后跳转
@@ -309,11 +332,12 @@ function WatchContent() {
   }, []);
 
   const handleEnded = useCallback(() => {
-    if (vodId) clearProgress(sourceKey, vodId, currentIndex).catch(() => {});
+    // 看完就清进度：下次进来从头播，而不是卡在结尾
+    if (progressKeyId) clearProgress(sourceKey, progressKeyId, currentIndex).catch(() => {});
     if (store.autoplayNext && currentIndex < episodes.length - 1) {
       autoNextTimer.current = setTimeout(() => goEpisode(currentIndex + 1), 800);
     }
-  }, [store.autoplayNext, currentIndex, episodes.length, goEpisode, sourceKey, vodId]);
+  }, [store.autoplayNext, currentIndex, episodes.length, goEpisode, sourceKey, progressKeyId]);
 
   // 快捷键（Shift+I/O/S/E）记录片段：校验后写入
   const handleRecordSegment = useCallback(
@@ -358,19 +382,6 @@ function WatchContent() {
 
   const orderedEpisodes = reversed ? [...episodes].map((_, i) => episodes.length - 1 - i) : episodes.map((_, i) => i);
 
-  if (!verified) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-faint text-sm">需要访问验证后才能播放</p>
-          <button className="btn-primary mt-3" onClick={openLogin}>
-            输入访问密码
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   if (sourceKey === 'embed' && !embedUrl) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -379,7 +390,7 @@ function WatchContent() {
           <p className="text-sm text-muted mb-4">
             只支持 player.bilibili.com/player.html 的站外播放器地址，请回到课程编辑中重新粘贴 iframe 代码。
           </p>
-          <Link href={courseId ? `/courses/${courseId}` : '/courses'} className="btn-primary">
+          <Link href={courseId ? `/courses/detail?id=${encodeURIComponent(courseId)}` : '/courses'} className="btn-primary">
             返回课程
           </Link>
         </div>
@@ -398,7 +409,7 @@ function WatchContent() {
               : `该视频来自点播源「${sourceKey}」，但它可能已被删除。请在设置中重新添加后重试。`}
           </p>
           <div className="flex items-center justify-center gap-2">
-            <Link href={courseId ? `/courses/${courseId}` : '/courses'} className="btn-ghost">
+            <Link href={courseId ? `/courses/detail?id=${encodeURIComponent(courseId)}` : '/courses'} className="btn-ghost">
               返回课程
             </Link>
             <Link href="/" className="btn-primary">
@@ -412,8 +423,11 @@ function WatchContent() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur border-b border-line">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
+      <header
+        className="sticky top-0 z-40 bg-surface/90 backdrop-blur border-b border-line app-region-drag"
+        style={{ paddingRight: 'var(--ut-titlebar-w, 0px)' }}
+      >
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center gap-3 app-region-no-drag">
           <BackButton />
           <HomeButton />
           <div className="min-w-0">
@@ -424,7 +438,7 @@ function WatchContent() {
               {courseTitle && (
                 <>
                   {' · '}
-                  <Link href={`/courses/${courseId}`} className="hover:text-accent transition-colors">
+                  <Link href={`/courses/detail?id=${encodeURIComponent(courseId)}`} className="hover:text-accent transition-colors">
                     {courseTitle}
                   </Link>
                 </>
@@ -463,14 +477,14 @@ function WatchContent() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4">
+      <main className="flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className={cn('grid grid-cols-1 gap-4', !isCourseDirect && 'lg:grid-cols-[1fr_300px]')}>
           <div>
             <div ref={playerFrameRef} className="aspect-video bg-black rounded-lg overflow-hidden">
-              {currentUrl ? (
+              {effectiveUrl ? (
                 isEmbed ? (
                   <iframe
-                    src={currentUrl}
+                    src={effectiveUrl}
                     title={videoTitle}
                     className="w-full h-full"
                     scrolling="no"
@@ -481,7 +495,7 @@ function WatchContent() {
                   />
                 ) : (
                 <PlayerShell
-                  url={currentUrl}
+                  url={effectiveUrl}
                   title={videoTitle}
                   adFilter={store.adFilter}
                   autoplayNext={store.autoplayNext}
@@ -524,6 +538,23 @@ function WatchContent() {
               )}
             </div>
 
+            {/* 解析线路：配置里有可用解析线路时才出现（内置聚合解析器不列）。
+                target 用 currentUrl（原始集地址）而不是 effectiveUrl——解析过的地址再解析没有意义 */}
+            {!isEmbed && currentUrl && (
+              <div className="flex items-center gap-2 mt-3 min-w-0">
+                <ParseLines target={currentUrl} onResolved={setParsedOverride} />
+                {parsedOverride && (
+                  <button
+                    className="btn-ghost btn-sm shrink-0"
+                    onClick={() => setParsedOverride(null)}
+                    title="放弃解析线路给出的地址，回到本集原始地址"
+                  >
+                    恢复原地址
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* 操作栏（仅点播源视频：集数、跳过标记、连播） */}
             {!isCourseDirect && (
               <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -560,7 +591,7 @@ function WatchContent() {
                 <label className="flex items-center gap-1.5 text-xs text-muted ml-auto cursor-pointer">
                   <input
                     type="checkbox"
-                    className="h-3.5 w-3.5 accent-[#2563eb]"
+                    className="h-3.5 w-3.5 accent-accent"
                     checked={store.autoplayNext}
                     onChange={(e) => store.updateSettings({ autoplayNext: e.target.checked })}
                   />

@@ -4,21 +4,22 @@
 
 /*
  * 语义化配色（RGB 三元组，供 Tailwind 以 <alpha-value> 注入透明度）：
- * 深色主题沿用旧版 LibreTV 配色；浅色主题为对应的白底变体。
+ * 视觉口径为 TVBox 风——中性黑灰底 + 纯白文字 + 单一稳健蓝强调色，海报网格铺开。
+ * 深色主题为默认主题（layout.tsx 首屏脚本默认 dark），浅色主题为对应的中性白底变体。
  */
 :root {
-  --c-page: 246 247 249;           /* #f6f7f9 */
+  --c-page: 245 245 247;           /* #f5f5f7 中性浅灰页面底（去蓝调） */
   --c-surface: 255 255 255;        /* #ffffff */
   --c-surface-raised: 255 255 255;
   --c-card: 255 255 255;
-  --c-chip: 238 240 243;           /* #eef0f3 */
-  --c-hover: 233 236 240;          /* #e9ecf0 */
-  --c-line: 224 227 232;           /* #e0e3e8 */
-  --c-content: 26 26 26;           /* #1a1a1a */
-  --c-muted: 95 99 104;            /* #5f6368 */
-  --c-faint: 107 114 128;          /* #6b7280（原 #8a8f98 对白底仅 3.2:1，加深后达到 AA 4.5:1） */
-  --c-accent: 37 99 235;           /* blue-600 */
-  --c-accent-hover: 29 78 216;     /* blue-700 */
+  --c-chip: 240 240 243;           /* #f0f0f3 */
+  --c-hover: 233 233 237;          /* #e9e9ed */
+  --c-line: 222 222 226;           /* #dedee2 中性灰边框 */
+  --c-content: 20 20 22;           /* #141416 主文本（近黑，去蓝） */
+  --c-muted: 88 88 96;             /* #585860 次级文本 */
+  --c-faint: 120 120 128;          /* #787880 三级文本（对白底 4.6:1，12px 小字达标） */
+  --c-accent: 11 95 191;           /* #0b5fbf 单一强调蓝（白字对比度 ≈ 6.3:1） */
+  --c-accent-hover: 0 112 224;     /* #0070e0 悬停加深 */
   --c-on-accent: 255 255 255;      /* accent 实心底上的文字色 */
   /* 语义状态色（亮色主题取偏深值，保证浅底上的对比度） */
   --c-danger: 220 38 38;           /* red-600 */
@@ -36,22 +37,21 @@
 }
 
 .dark {
-  /* 旧版 LibreTV（backup-2025）赛博影视主题（整体调深一档）：深蓝黑底 + 霓虹蓝/粉点缀 */
-  --c-page: 11 16 26;              /* #0b101a 深蓝黑页面底色 */
-  --c-surface: 20 28 41;           /* #141c29 弹窗/抽屉底色 */
-  --c-surface-raised: 20 28 41;
-  --c-card: 13 20 31;              /* #0d141f 卡片底色 */
-  --c-chip: 22 32 46;              /* #16202e 卡片/输入框底色 */
-  --c-hover: 29 42 61;             /* #1d2a3d 悬停态（chip 提亮） */
-  --c-line: 34 48 69;              /* #223045 边框（近似旧版 rgba(0,204,255,.15) 观感） */
-  --c-content: 230 242 255;        /* #e6f2ff 蓝白主文本（--text-color） */
-  --c-muted: 133 153 178;          /* #8599b2 次级文本（--text-muted） */
-  --c-faint: 122 140 166;          /* #7a8ca6 三级文本（原 #6b7f99 在抽屉底色 #141c29 上仅 4.17:1，12px 小字不达标；提亮后 4.99:1） */
-  --c-accent: 0 184 230;           /* #00b8e6 霓虹蓝主色（--primary-color 调深一档） */
-  --c-accent-hover: 51 214 255;    /* #33d6ff 霓虹蓝浅变体（--primary-light） */
-  /* 霓虹蓝底亮度过高（对白字仅 2.35:1），暗色下实心底改用深色文字 */
-  --c-on-accent: 8 19 31;
-  /* 语义状态色（暗色主题取中等明度值，保证深蓝黑底上的对比度） */
+  /* TVBox 风深色主题：中性黑灰底 + 纯白文字 + 单一稳健蓝强调色（无深蓝黑、无霓虹） */
+  --c-page: 15 15 17;              /* #0f0f11 近中性黑页面底色 */
+  --c-surface: 26 26 29;           /* #1a1a1d 弹窗/顶栏底色 */
+  --c-surface-raised: 34 34 38;    /* #222226 比 surface 高一档，面板与顶栏可区分 */
+  --c-card: 21 21 24;              /* #151518 卡片底色 */
+  --c-chip: 38 38 42;              /* #26262a 卡片/输入框/胶囊底色 */
+  --c-hover: 48 48 54;             /* #303036 悬停态（chip 提亮） */
+  --c-line: 48 48 52;              /* #303034 中性灰边框（去青调） */
+  --c-content: 255 255 255;        /* #ffffff 纯白主文本 */
+  --c-muted: 176 176 182;          /* #b0b0b6 次级文本 */
+  --c-faint: 138 138 146;          /* #8a8a92 三级文本（对卡片底 4.9:1，12px 小字达标） */
+  --c-accent: 0 112 224;           /* #0070e0 唯一强调蓝（白字对比度约 4.8:1，满足 AA 4.5:1） */
+  --c-accent-hover: 26 133 245;    /* #1a85f5 悬停提亮 */
+  --c-on-accent: 255 255 255;      /* accent 实心蓝底配白字 */
+  /* 语义状态色（暗色主题取中等明度值，保证深灰底上的对比度） */
   --c-danger: 239 68 68;           /* red-500 */
   --c-danger-hover: 248 113 113;   /* red-400 */
   --c-success: 34 197 94;          /* green-500 */
@@ -66,14 +66,25 @@
   color-scheme: dark;
 }
 
-html,
-body {
+/**
+ * 底色只画在 `html` 上，**body 必须透明**。
+ *
+ * 原因：页面背景壁纸层是 `fixed inset-0 -z-10`。按 CSS 绘制顺序，根元素（html）的背景先画，
+ * 负 z 索引的后代随后画，**普通流里 body 的背景再盖上去**——body 只要有不透明底色，
+ * 壁纸就永远不可见（本地图片与 TVBOX 配置壁纸都踩过这个坑：状态明明对了，却看不到变化）。
+ * 把底色留在 html、body 透明，负 z 层才显示得出来，且正文仍在壁纸之上。
+ */
+html {
   @apply bg-page text-content antialiased;
 }
 
-/* 暗色主题：模拟旧版 .page-bg 的深蓝黑纵向渐变 */
-.dark body {
-  background: linear-gradient(180deg, rgb(11 16 26), rgb(20 28 41)) fixed;
+/* 暗色主题：TVBox 风是平涂底色，只保留极轻微的中性层次（去深蓝黑纵向渐变） */
+html.dark {
+  background: linear-gradient(180deg, rgb(15 15 17), rgb(22 22 26)) fixed;
+}
+
+body {
+  @apply text-content antialiased;
 }
 
 body {
@@ -111,6 +122,50 @@ body {
   .chip {
     @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] transition-colors;
   }
+  /* TVBox 风筛选胶囊：大圆角 + 大字号，用于分类页/资源库的筛选条 */
+  .chip-lg {
+    @apply chip px-3.5 py-1.5 text-sm;
+  }
+  /* 横向可滑分类 tab 条（TVBox 顶部栏）：溢出可滑动，滚动条隐藏 */
+  .nav-strip {
+    @apply flex items-center gap-0.5 overflow-x-auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .nav-strip::-webkit-scrollbar {
+    display: none;
+  }
+  /* 单独使用的滚动条隐藏（横向 chip 条等，不改变 flex 布局） */
+  .scroll-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scroll-hidden::-webkit-scrollbar {
+    display: none;
+  }
+  /* 分类 tab：选中态强调色底，未选中次级文字色 */
+  .nav-tab {
+    @apply shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted transition-colors hover:bg-hover hover:text-content;
+  }
+  .nav-tab-active {
+    @apply bg-accent font-medium text-on-accent hover:bg-accent-hover hover:text-on-accent;
+  }
+  /* 海报容器：2:3 竖版，圆角，底图未就绪时用 chip 色打底 */
+  .poster {
+    @apply relative aspect-[2/3] w-full overflow-hidden rounded-md bg-chip;
+  }
+  /* 海报上的底部渐变遮罩（黑 → 透明），标题/备注压图时保证可读 */
+  .poster-scrim {
+    background: linear-gradient(to top, rgb(0 0 0 / 0.88) 0%, rgb(0 0 0 / 0.55) 38%, rgb(0 0 0 / 0) 72%);
+  }
+  /* 遥控可达的焦点态（TVBox 关键观感）：可交互卡片键盘聚焦时描边 */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-page;
+  }
+  /* 海报卡悬停：轻微上浮 + 提亮 */
+  .poster-card-hover {
+    @apply transition-transform duration-200 hover:-translate-y-0.5;
+  }
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -129,30 +184,28 @@ body {
 .episode-active {
   background: rgb(var(--c-accent)) !important;
   border-color: rgb(var(--c-accent)) !important;
-  /* 暗色下霓虹蓝底对白字对比度不足，统一用 on-accent（亮色白 / 暗色深） */
   color: rgb(var(--c-on-accent)) !important;
 }
 
-/* 品牌渐变字（沿用旧版 LibreTV 的霓虹蓝→霓虹粉） */
+/* 品牌字标：TVBox 风朴素实色（原 LibreTV 霓虹蓝→粉渐变已移除）。
+   类名保留以兼容既有引用，但不再产生任何渐变 */
 .brand-gradient {
-  background: linear-gradient(to right, #00ccff, #ff3c78);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
+  background: none;
+  color: rgb(var(--c-content));
+  -webkit-text-fill-color: currentColor;
 }
 
-/* LIVE 呼吸红点（直播页标识） */
+/* LIVE 呼吸红点（直播页标识，取语义 danger 色） */
 .live-dot {
   width: 8px;
   height: 8px;
   border-radius: 9999px;
-  background: #ef4444;
+  background: rgb(var(--c-danger));
   animation: live-breathe 2s ease-in-out infinite;
 }
 @keyframes live-breathe {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
-  50% { opacity: 0.55; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgb(var(--c-danger) / 0.5); }
+  50% { opacity: 0.55; box-shadow: 0 0 0 4px rgb(var(--c-danger) / 0); }
 }
 
 /*
@@ -188,3 +241,186 @@ body {
     min-width: 40px !important;
   }
 }
+
+/*
+ * ============ 壁纸模式：深色玻璃「HUD」 ============
+ *
+ * 只在 <html class="has-wallpaper"> 时生效（壁纸组件按当前是否有图切换）；
+ * 关掉壁纸就完全回到原来的实色外观，不影响没开壁纸的观感。
+ *
+ * 为什么连配色都强制成深色（而不是沿用当前主题）：
+ * 壁纸是照片，**浅色主题的近黑文字落在偏暗的照片上会糊成一片**（用户反馈「黑字和背景重合看不清」）。
+ * 壁纸模式下统一「深色玻璃 + 白/蓝字」：不管系统主题、不管壁纸明暗，文字对比度都稳定。
+ *
+ * 分三步：
+ * 1. 覆盖基础调色板——所有 `bg-*` / `text-*` 工具类会自动跟着变，不必逐个组件改；
+ * 2. 卡片 / 输入框 / 顶栏半透明 + backdrop 模糊，让壁纸透出来；
+ * 3. 边框降为半透明，悬停态也用半透明（玻璃上不该出现实心块）。
+ */
+html.has-wallpaper {
+  /* 表单控件、滚动条也按深色渲染 */
+  color-scheme: dark;
+
+  --c-page: 15 15 17;
+  --c-surface: 26 26 29;
+  --c-surface-raised: 34 34 38;
+  --c-card: 21 21 24;
+  --c-chip: 38 38 42;
+  --c-hover: 48 48 54;
+  --c-line: 48 48 52;
+
+  /* 文字统一提亮：主文本纯白、次级/三级各提一档（玻璃后是照片，按实色底校准的值会掉一档） */
+  --c-content: 255 255 255;
+  --c-muted: 196 196 202;
+  --c-faint: 156 156 164;
+
+  /* 强调色用深色主题那一档：深底上更亮更清楚 */
+  --c-accent: 0 112 224;
+  --c-accent-hover: 26 133 245;
+  --c-on-accent: 255 255 255;
+
+  /* 语义状态色同样取深色主题的较亮值，保证落在玻璃上依然可辨 */
+  --c-danger: 239 68 68;
+  --c-danger-hover: 248 113 113;
+  --c-success: 34 197 94;
+  --c-warning: 245 158 11;
+  --c-info: 59 130 246;
+  --c-rating: 251 191 36;
+  --c-danger-solid: 185 28 28;
+  --c-success-solid: 21 128 61;
+  --c-warning-solid: 180 83 9;
+  --c-info-solid: 29 78 216;
+}
+
+html.has-wallpaper .card,
+html.has-wallpaper .bg-card {
+  background-color: rgb(var(--c-card) / 0.72);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+html.has-wallpaper .btn-ghost,
+html.has-wallpaper .input,
+html.has-wallpaper .bg-chip {
+  background-color: rgb(var(--c-chip) / 0.62);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+}
+
+html.has-wallpaper .bg-surface {
+  background-color: rgb(var(--c-surface) / 0.74);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+/*
+ * 页面最顶栏（Header）比其它区块更透，出来「顶部一条悬浮毛玻璃」的观感；
+ * 更强模糊保证导航文字在任意壁纸上都清楚。
+ */
+html.has-wallpaper header {
+  background-color: rgb(var(--c-surface) / 0.52);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom-color: rgb(var(--c-line) / 0.45);
+}
+
+/* 移动端底部导航同规格，避免上下两条观感不一致 */
+html.has-wallpaper nav[aria-label='底部导航'] {
+  background-color: rgb(var(--c-surface) / 0.6);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
+html.has-wallpaper .border-line {
+  border-color: rgb(var(--c-line) / 0.6);
+}
+
+/* 悬浮态也要有落点：玻璃上的悬停不用不透明色，避免突兀的实心块 */
+html.has-wallpaper .hover\:bg-hover:hover,
+html.has-wallpaper .hover\:bg-hover\/80:hover {
+  background-color: rgb(var(--c-hover) / 0.55) !important;
+}
+
+/*
+ * ============ 桌面端标题栏（WCO + 玻璃材质） ============
+ *
+ * 桌面客户端隐藏了系统标题栏：应用顶栏承担标题栏职责（可拖拽移动窗口），
+ * 最小化/最大化/关闭以系统覆盖层浮在顶栏右侧。
+ *
+ * - .app-region-drag / .app-region-no-drag：app-region 工具类。drag 区内的
+ *   交互元素（链接、按钮）必须显式 no-drag，否则点击会被拖拽吞掉。
+ * - 玻璃材质（Win11 acrylic）：主进程以透明窗口 + backgroundMaterial:'acrylic'
+ *   创建。页面里只让顶栏一条透出材质——顶栏自身用近全透明底 + 强模糊，
+ *   桌面背景经系统亚克力采样后与 backdrop-blur 叠加，形成真实玻璃观感；
+ *   正文仍铺实色（html 底色），保证内容可读性。
+ * - 浏览器无 --ut-titlebar-w（默认 0px），相关规则不影响 Web 端。
+ */
+
+:root {
+  --ut-titlebar-w: 0px;
+  --ut-titlebar-h: 0px;
+}
+
+@layer utilities {
+  .app-region-drag {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .app-region-no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+}
+
+/*
+ * ============ 桌面端标题栏（WCO + 玻璃材质） ============
+ *
+ * 桌面客户端隐藏了系统标题栏：应用顶栏承担标题栏职责（可拖拽移动窗口），
+ * 最小化/最大化/关闭以系统覆盖层浮在顶栏右侧。
+ *
+ * - .app-region-drag / .app-region-no-drag：app-region 工具类。drag 区内的
+ *   交互元素（链接、按钮）必须显式 no-drag，否则点击会被拖拽吞掉。
+ * - 玻璃材质（Win11 acrylic）：主进程以透明窗口 + backgroundMaterial:'acrylic'
+ *   创建，并把 .os-desktop.glass-titlebar 类加到 <html>（preload 桥 + 玻璃支持
+ *   检测通过时，见 layout 首屏脚本）。顶栏自身用近全透明底 + 强模糊，
+ *   桌面背景经系统亚克力采样后透出，形成真实玻璃观感；正文仍铺实色。
+ * - 浏览器无 .os-desktop，这些规则全部不生效，Web 端外观不变。
+ */
+
+:root {
+  --ut-titlebar-w: 0px;
+  --ut-titlebar-h: 0px;
+}
+
+@layer utilities {
+  .app-region-drag {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .app-region-no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+}
+
+/* 玻璃标题栏：顶栏几乎全透，让系统亚克力材质成为顶栏的"底色"。
+   backdrop-blur 与 acrylic 双重叠加：近处的壁纸/页面被模糊，
+   远处的桌面背景由系统材质采样——层次比纯 CSS 毛玻璃更真实。 */
+html.os-desktop.glass-titlebar header {
+  background-color: rgb(var(--c-surface) / 0.38);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  border-bottom-color: rgb(var(--c-line) / 0.5);
+  box-shadow: none;
+}
+
+/* 玻璃窗口下正文必须铺实色：窗口是透明的，任何缺底的地方会直接露出桌面。
+   html 已有 bg-page；此处补足底部导航（移动端贴底悬浮）。 */
+html.os-desktop.glass-titlebar nav[aria-label='底部导航'] {
+  background-color: rgb(var(--c-surface) / 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* 壁纸模式与玻璃标题栏叠加时：壁纸规则已把顶栏调成 0.52 透明度，
+   保持壁纸优先（has-wallpaper 规则在后加载会覆盖本节同特异性规则）。 */

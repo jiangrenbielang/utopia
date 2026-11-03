@@ -54,10 +54,6 @@ function CoursesContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/local-player" className="btn-ghost">
-            <Icon name="play" className="w-4 h-4" />
-            本地高清
-          </Link>
           <Link href="/resources" className="btn-ghost">
             <Icon name="search" className="w-4 h-4" />
             资源库
@@ -69,7 +65,8 @@ function CoursesContent() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-5">
+      {/* TVBox 风筛选条：大圆角胶囊，选中态用强调色实底 */}
+      <div className="scroll-hidden flex flex-wrap items-center gap-2 mb-5">
         {['全部', ...SUBJECTS].map((subject) => {
           const active = filter === subject;
           const count = subject === '全部' ? courses.length : courses.filter((c) => c.subject === subject).length;
@@ -77,15 +74,15 @@ function CoursesContent() {
             <button
               key={subject}
               className={cn(
-                'chip px-3 py-1 text-xs border transition-colors',
+                'chip-lg focus-ring border',
                 active
-                  ? 'bg-accent text-on-accent border-accent'
-                  : 'bg-chip text-muted border-line hover:text-content hover:bg-hover'
+                  ? 'border-accent bg-accent text-on-accent'
+                  : 'border-line bg-chip text-muted hover:bg-hover hover:text-content'
               )}
               onClick={() => setFilter(subject)}
             >
               {subject}
-              <span className={cn('text-[10px]', active ? 'text-on-accent/70' : 'text-faint')}>{count}</span>
+              <span className={cn('text-xs', active ? 'text-on-accent/70' : 'text-faint')}>{count}</span>
             </button>
           );
         })}
@@ -103,7 +100,8 @@ function CoursesContent() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        // TVBox 风：课程以竖版海报网格铺开（注释留在表达式外，避免 JSX 兄弟节点报错）
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
           {list.map((course) => (
             <CourseCard key={course.id} course={course} />
           ))}

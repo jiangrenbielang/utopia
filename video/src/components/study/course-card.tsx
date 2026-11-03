@@ -7,7 +7,10 @@ import { useStudyRecords } from '@/lib/study/store';
 import { subjectColor, type Course } from '@/lib/study/types';
 import { formatMinutesCompact } from '@/lib/study/format';
 
-/** 课程卡片：科目固定配色封面 + 学习进度（按已记录的章节聚合） */
+/**
+ * 课程卡片：TVBox 风竖版海报卡（2:3），封面用科目配色 + 科目前两字，
+ * 标题与进度贴在封面下沿；学习进度仍按已记录的章节聚合。
+ */
 export function CourseCard({ course }: { course: Course }) {
   const records = useStudyRecords();
   const { totalMin, byLesson } = courseLearned(records, course.id);
@@ -18,49 +21,46 @@ export function CourseCard({ course }: { course: Course }) {
 
   return (
     <Link
-      href={`/courses/${course.id}`}
-      className="card group hover:border-accent/50 hover:-translate-y-0.5 flex flex-col"
+      href={`/courses/detail?id=${encodeURIComponent(course.id)}`}
+      className="card poster-card-hover focus-ring group flex flex-col overflow-hidden"
     >
       <div
-        className="relative aspect-[16/7] overflow-hidden"
+        className="poster flex items-center justify-center"
         style={{
-          background: `radial-gradient(120% 140% at 0% 0%, ${color}38 0%, transparent 60%), linear-gradient(135deg, ${color}1f, rgb(var(--c-chip)))`,
+          background: `radial-gradient(120% 120% at 0% 0%, ${color}38 0%, transparent 60%), linear-gradient(160deg, ${color}1f, rgb(var(--c-chip)))`,
         }}
       >
+        <span className="text-5xl font-black leading-none" style={{ color }}>
+          {course.subject.slice(0, 2)}
+        </span>
         <span
-          className="absolute left-3 top-3 tag font-medium border"
+          className="tag absolute left-2 top-2 border font-medium"
           style={{ backgroundColor: `${color}26`, color, borderColor: `${color}44` }}
         >
           {course.subject}
         </span>
         {course.sample && (
-          <span className="absolute right-3 top-3 tag bg-chip/80 text-faint border border-line">示例</span>
+          <span className="tag absolute right-2 top-2 bg-black/70 text-white">示例</span>
         )}
-        <span className="absolute inset-0 flex items-center justify-center">
-          <span className="w-11 h-11 rounded-full border border-line bg-page/40 backdrop-blur flex items-center justify-center text-muted group-hover:text-accent group-hover:border-accent/50 transition-colors">
-            <Icon name="play" className="w-5 h-5" />
-          </span>
-        </span>
-        <span className="absolute bottom-3 right-3 inline-flex items-center gap-1 text-[11px] text-muted">
+        {/* 底部遮罩 + 集数：标题压在图上时保证可读 */}
+        <div className="poster-scrim absolute inset-x-0 bottom-0 h-16" />
+        <span className="absolute inset-x-0 bottom-1.5 flex items-center justify-center gap-1 text-[11px] text-white/90">
           <Icon name="book" className="w-3.5 h-3.5" />
           {totalLessons} 讲
         </span>
-        <div className="absolute inset-x-0 bottom-0 h-1 bg-line/60">
+        <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
           <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
         </div>
       </div>
 
-      <div className="p-3.5 flex-1 flex flex-col">
-        <h3 className="text-sm font-medium text-content truncate group-hover:text-accent transition-colors">
+      <div className="flex flex-1 flex-col p-2.5">
+        <h3 className="text-[13px] font-medium leading-snug text-content line-clamp-2 group-hover:text-accent transition-colors">
           {course.title}
         </h3>
-        <p className="text-xs text-faint mt-1 truncate">
-          {course.teacher ? `${course.teacher} · ` : ''}
-          {course.description || '暂无课程简介'}
-        </p>
-        <div className="mt-auto pt-3 flex items-center justify-between text-[11px] text-faint">
+        {course.teacher && <p className="mt-0.5 truncate text-[11px] text-faint">{course.teacher}</p>}
+        <div className="mt-auto flex items-center justify-between pt-2 text-[11px] text-faint">
           <span>已学 {formatMinutesCompact(totalMin)}</span>
-          <span>
+          <span className="shrink-0">
             {doneLessons}/{totalLessons} 讲
           </span>
         </div>

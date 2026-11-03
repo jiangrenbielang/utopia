@@ -17,5 +17,6 @@
     "paths": { "@/*": ["./src/*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "//": "排除 .tmp：静态导出构建会把 src/app/api 临时挪到 .tmp/api-stash（.tmp 已被 gitignore），不该进类型检查",
+  "exclude": ["node_modules", ".tmp"]
 }

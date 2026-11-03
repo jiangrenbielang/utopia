@@ -32,11 +32,17 @@ export interface SkipMark {
   updatedAt: number;
 }
 
-/** 三类片段在进度条色带与图例中的颜色（player-shell / skip-mark-panel 共用） */
+/**
+ * 三类片段在进度条色带与图例中的颜色（player-shell / skip-mark-panel 共用）。
+ *
+ * 用语义令牌而不是写死色值：进度条色带会随主题切换（浅色/深色、强调色变更）自动跟随，
+ * 之前写死 `rgba(37,99,235,…)` 会让色带在换配色后与新强调色不一致。
+ * 两处消费点都是 DOM 样式（`el.style.cssText` / React `style`），CSS 变量可正常解析。
+ */
 export const SEGMENT_COLORS: Record<SkipSegmentType, string> = {
-  opening: 'rgba(37,99,235,0.45)',
-  middle: 'rgba(148,163,184,0.45)',
-  ending: 'rgba(249,115,22,0.45)',
+  opening: 'rgb(var(--c-accent) / 0.45)',
+  middle: 'rgb(var(--c-muted) / 0.45)',
+  ending: 'rgb(var(--c-warning) / 0.45)',
 };
 
 /** 三类片段的展示名（面板列表 / 进度条 tooltip 共用） */

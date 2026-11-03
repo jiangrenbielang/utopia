@@ -11,6 +11,8 @@
 export const SUBJECTS = [
   '数学',
   '英语',
+  '政治',
+  '专业课',
   '408数据结构',
   '408计算机网络',
   '408操作系统',
@@ -24,6 +26,8 @@ export type SubjectName = (typeof SUBJECTS)[number];
 export const SUBJECT_COLORS: Record<string, string> = {
   数学: '#4A90D9',
   英语: '#E0705A',
+  政治: '#C94F6D',
+  专业课: '#5FC0D8',
   '408数据结构': '#7B6CCF',
   '408计算机网络': '#4CB8A4',
   '408操作系统': '#D9A05B',

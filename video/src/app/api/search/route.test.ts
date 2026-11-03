@@ -1,6 +1,5 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POST } from './route';
-import { SESSION_COOKIE, signSession } from '@/lib/auth';
 import type { SearchResponse, SearchStreamEvent, SourceConfig } from '@/lib/types';
 
 /**
@@ -37,13 +36,9 @@ function mockUpstream(): void {
 }
 
 function makeRequest(body: unknown, stream = false): Request {
-  const { token } = signSession();
   return new Request(`https://local.test/api/search${stream ? '?stream=1' : ''}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      cookie: `${SESSION_COOKIE}=${token}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 }
@@ -52,10 +47,6 @@ const SOURCES = [
   { key: 'a', name: '源A', url: 'https://cms-a.example.com/api.php' },
   { key: 'b', name: '源B', url: 'https://cms-b.example.com/api.php' },
 ];
-
-beforeAll(() => {
-  process.env.PASSWORD = 'test-password-123';
-});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -191,24 +182,5 @@ describe('POST /api/search', () => {
     expect(JSON.parse((await cachedStream.text()).trim())).toEqual({ type: 'done', list: [], failures: [] });
     const fresh = await POST(makeRequest({ ...body, sources: [{ ...body.sources[0], url: body.sources[0].url + '/fresh' }] }));
     expect(await fresh.json()).toEqual({ list: [], failures: [] });
-  });
-
-  it('未登录返回 401，未配置密码返回 503', async () => {
-    vi.stubGlobal('fetch', vi.fn());
-    const saved = process.env.PASSWORD;
-    delete process.env.PASSWORD;
-    try {
-      const noPassword = await POST(makeRequest({ wd: 'x', sources: SOURCES }));
-      expect(noPassword.status).toBe(503);
-    } finally {
-      process.env.PASSWORD = saved;
-    }
-    const noCookie = new Request('https://local.test/api/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ wd: 'x', sources: SOURCES }),
-    });
-    const unauthorized = await POST(noCookie);
-    expect(unauthorized.status).toBe(401);
   });
 });

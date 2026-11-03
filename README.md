@@ -6,7 +6,7 @@
 
 2026年10月25日我在B站看网课时苦于每次都要自己手动调进度，便想着能不能自己做一个播放器具有记忆功能，于是乌托邦个人考研网课平台诞生了。
 
-本平台基于libretv和研时记两个开源项目，同时具备视频播放和学习计时功能，本项目禁止商用，视频源需要自己获取，祝愿每个使用该项目的考研人能够成功上岸。
+本平台的播放内核与聚合能力来自 [LibreTV](https://github.com/LibreSpark/LibreTV)，学习计时与统计部分与「研时记」一脉相承；客户端的数据源改为 **TVBox「配置地址」驱动**——填一份接口 JSON 即可带出点播站点、直播源、解析线路与壁纸。本项目禁止商用，视频源需要自己获取，祝愿每个使用该项目的考研人能够成功上岸。
 
 如果你没有能力支持正版，希望你在获取盗版资源的时候不要跳脸那些支持正版的同学，如果你有能力支持正版但觉得本项目更便利，请在支持正版后采用本项目。
 
@@ -19,8 +19,8 @@
 | 目录 | 说明 | 技术 |
 |---|---|---|
 | [app](app/) | Android / 移动端 App：倒计时、计时、统计、日志、补录、备份 | React 19 + Vite + Capacitor 8 |
-| [video](video/) | Web 网课平台：课程库、播放即计时、倒计时、统计、日志、资源库 | Next.js 15 + TypeScript + Tailwind |
-| [desktop](desktop/) | Windows Electron 客户端：一键启动 Web + 本地 mpv 统一播放 | Electron + Node |
+| [video](video/) | 网课平台客户端：课程库、播放即计时、倒计时、统计、日志、资源库；数据源由 TVBox 配置地址驱动，界面为 TVBox 风格 | Next.js 15 + TypeScript + Tailwind |
+| [desktop](desktop/) | Windows Electron 客户端：主进程内建本地数据层（静态页面 + 服务核 API），配合本地 mpv 统一播放 | Electron + Node |
 | [backend](backend/) | 安装包分发 + 移动端 Web 在线版托管 | Node 内置 http（零依赖） |
 | [docs](docs/) | 开发文档与产品规格 | Markdown |
 | [screenshots](screenshots/) | 移动端截图 | PNG |
@@ -47,7 +47,7 @@
 
 双击根目录 **`启动.bat`**，按菜单选择：
 
-1. **Web 平台**：Next.js 网课平台，<http://localhost:8080>，访问密码见 `video/.env`（默认 `utopia2026`）。
+1. **Web 平台**：Next.js 网课平台，<http://localhost:8080>（已无访问密码，首次使用请在「设置 → TVBox 配置地址」填入你的接口地址）。
 2. **Web 开发模式**：保存代码即热更新。
 3. **移动端 Web + APK 下载**：<http://localhost:8081>。
 4. **打开文档目录**。
@@ -73,11 +73,11 @@ cd backend && node server.js
 
 ### Web 网课平台
 
-课程库按 7 个考研科目组织，章节支持 m3u8 / mp4 直链或 B 站站外播放器 iframe；**播放即计时**，离开页面自动保存；另有自由计时、日/周/月统计、学习日志、考试倒计时、资源库聚合搜索与课程进度。
+课程库按 7 个考研科目组织，章节支持 m3u8 / mp4 直链或 B 站站外播放器 iframe；**播放即计时**，离开页面自动保存；另有自由计时、日/周/月统计、学习日志、考试倒计时、资源库聚合搜索与课程进度。数据源统一由 **TVBox 配置地址**提供（一份接口 JSON 带出点播站点与直播源；依赖 Spider 引擎的站点会被跳过并说明原因）。
 
 ### Windows 桌面客户端
 
-`desktop/` 是 Electron 客户端：启动时自动拉起 Next.js Web 服务与本地 companion，使用 mpv 统一播放 B 站 / 直链课程，并在本地高清页选择课程章节。安装包构建见 [desktop/README.md](desktop/README.md)。
+`desktop/` 是 Electron 客户端：启动时由主进程拉起**内建的本地数据层**（静态导出的页面 + 编译好的服务核，监听 `127.0.0.1:3210`）与本地 companion，使用 mpv 统一播放 B 站 / 直链课程，并在本地高清页选择课程章节。不再启动 Next.js 服务，也没有访问密码。安装包构建见 [desktop/README.md](desktop/README.md)。
 
 > companion 源码只保留在本地，不随仓库分发；构建安装包前需要本地 `companion/`、mpv 和 PyInstaller。
 ### 分发服务

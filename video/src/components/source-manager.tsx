@@ -27,7 +27,6 @@ import { formatRelativeTime, hostnameOf, validateSourceUrl, cn } from '@/lib/uti
 import { exportConfig, importConfig } from '@/lib/db';
 import { PERSIST_KEY } from '@/lib/persist-storage';
 import { copyToClipboard } from '@/lib/clipboard';
-import { useAuth } from './auth';
 import { api } from '@/lib/client-api';
 import { AUTO_REFRESH_MAX_FAIL_STREAK, syncSourceSubscription } from '@/lib/subscription-sync';
 import { describeParseStats } from '@/lib/tvbox-parser';
@@ -228,8 +227,7 @@ function VodSourcesPanel() {
   const { tests, runTest } = useSourceTests();
   const { progress, probe, cancel, isProbing } = useSourceProbe();
 
-  const envKeys = useMemo(() => new Set(store.envSources.map((s) => s.key)), [store.envSources]);
-  const all = useMemo(() => [...store.envSources, ...store.customAPIs], [store.envSources, store.customAPIs]);
+  const all = store.customAPIs;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -239,12 +237,12 @@ function VodSourcesPanel() {
       if (filter === 'enabled' && !(store.selectedKeys.includes(s.key) && !isSourceDisabled(store, s.key))) return false;
       if (filter === 'disabled' && !isSourceDisabled(store, s.key)) return false;
       if (filter === 'sub' && !fromSub) return false;
-      // 手动添加 = 既非订阅导入、也非部署者预置
-      if (filter === 'manual' && (fromSub || envKeys.has(s.key))) return false;
+      // 手动添加 = 非订阅导入
+      if (filter === 'manual' && fromSub) return false;
       if (!q) return true;
       return s.name.toLowerCase().includes(q) || s.url.toLowerCase().includes(q);
     });
-  }, [all, query, filter, store, envKeys]);
+  }, [all, query, filter, store]);
 
   const visibleKeys = filtered.map((s) => s.key);
   const allSelected = visibleKeys.length > 0 && visibleKeys.every((k) => store.selectedKeys.includes(k));
@@ -279,7 +277,7 @@ function VodSourcesPanel() {
     toast(`已恢复 ${keys.length} 个源`, 'success');
   };
 
-  const empty = store.envSources.length === 0 && store.customAPIs.length === 0;
+  const empty = store.customAPIs.length === 0;
 
   return (
     <section>
@@ -379,7 +377,6 @@ function VodSourcesPanel() {
                 <VodSourceRow
                   key={source.key}
                   api={source}
-                  isEnv={envKeys.has(source.key)}
                   editing={editing === source.key}
                   onEdit={setEditing}
                   onCancelEdit={() => setEditing(null)}
@@ -415,10 +412,9 @@ function formatEta(done: number, total: number, startedAt: number): string {
   return remainSec > 0 ? ` · 约 ${remainSec}s` : '';
 }
 
-/** 单条点播源行：勾选 / 名称标签 / 健康度 / 探活 / 编辑删除（订阅源与预置源按来源限制操作） */
+/** 单条点播源行：勾选 / 名称标签 / 健康度 / 探活 / 编辑删除（订阅源按来源限制操作） */
 function VodSourceRow({
   api,
-  isEnv,
   editing,
   onEdit,
   onCancelEdit,
@@ -427,7 +423,6 @@ function VodSourceRow({
   onTest,
 }: {
   api: SourceConfig;
-  isEnv: boolean;
   editing: boolean;
   onEdit: (key: string) => void;
   onCancelEdit: () => void;
@@ -486,11 +481,6 @@ function VodSourceRow({
           <div className="text-sm font-medium text-content truncate">
             {api.name}
             {api.isAdult && <span className="text-pink-400 text-xs ml-1">(18+)</span>}
-            {isEnv && (
-              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-chip text-faint align-middle">
-                部署者预置
-              </span>
-            )}
             {fromSubscription && (
               <span
                 className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent align-middle"
@@ -509,47 +499,46 @@ function VodSourceRow({
           title="测试可用性（搜索耗时与结果量）"
           badgeWhenOk={({ ms }) => `✓ ${ms}ms`}
         />
-        {!isEnv &&
-          (fromSubscription ? (
-            // 订阅源由远端列表管理：编辑会被下次同步覆盖、删除会复活，故置为禁用态并说明去处
-            <>
-              <button
-                className="rounded-md p-2 text-muted/30 cursor-not-allowed shrink-0"
-                disabled
-                aria-label="订阅源不可单独编辑"
-                title="该源来自订阅，修改会在下次同步时被覆盖；请修改远端订阅后重新同步"
-              >
-                <Icon name="edit" className="w-4 h-4" />
-              </button>
-              <button
-                className="rounded-md p-2 text-muted/30 cursor-not-allowed shrink-0"
-                disabled
-                aria-label="订阅源不可单独删除"
-                title="该源来自订阅，单独删除会在下次同步时恢复；请到「数据源订阅」删除整个订阅"
-              >
-                <Icon name="trash" className="w-4 h-4" />
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                className="rounded-md p-2 text-muted transition-colors hover:bg-hover hover:text-accent shrink-0"
-                onClick={() => onEdit(api.key)}
-                aria-label="编辑"
-                title="编辑"
-              >
-                <Icon name="edit" className="w-4 h-4" />
-              </button>
-              <button
-                className="rounded-md p-2 text-muted transition-colors hover:bg-hover hover:text-danger shrink-0"
-                onClick={remove}
-                aria-label="删除"
-                title="移除（可在提示中撤销）"
-              >
-                <Icon name="trash" className="w-4 h-4" />
-              </button>
-            </>
-          ))}
+        {fromSubscription ? (
+          // 订阅源由远端列表管理：编辑会被下次同步覆盖、删除会复活，故置为禁用态并说明去处
+          <>
+            <button
+              className="rounded-md p-2 text-muted/30 cursor-not-allowed shrink-0"
+              disabled
+              aria-label="订阅源不可单独编辑"
+              title="该源来自订阅，修改会在下次同步时被覆盖；请修改远端订阅后重新同步"
+            >
+              <Icon name="edit" className="w-4 h-4" />
+            </button>
+            <button
+              className="rounded-md p-2 text-muted/30 cursor-not-allowed shrink-0"
+              disabled
+              aria-label="订阅源不可单独删除"
+              title="该源来自订阅，单独删除会在下次同步时恢复；请到「数据源订阅」删除整个订阅"
+            >
+              <Icon name="trash" className="w-4 h-4" />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="rounded-md p-2 text-muted transition-colors hover:bg-hover hover:text-accent shrink-0"
+              onClick={() => onEdit(api.key)}
+              aria-label="编辑"
+              title="编辑"
+            >
+              <Icon name="edit" className="w-4 h-4" />
+            </button>
+            <button
+              className="rounded-md p-2 text-muted transition-colors hover:bg-hover hover:text-danger shrink-0"
+              onClick={remove}
+              aria-label="删除"
+              title="移除（可在提示中撤销）"
+            >
+              <Icon name="trash" className="w-4 h-4" />
+            </button>
+          </>
+        )}
       </div>
     </li>
   );
@@ -886,7 +875,7 @@ function SourceSubscriptions() {
   };
 
   const exportSources = () => {
-    const all = [...store.envSources, ...store.customAPIs];
+    const all = [...store.customAPIs];
     const seen = new Set<string>();
     const sources = all
       .filter((s) => {
@@ -897,9 +886,9 @@ function SourceSubscriptions() {
       })
       .map(({ name, url, detail, isAdult }) => ({ name, url, detail, isAdult }));
 
-    // 直播源：预置 + 手动 + 订阅导入，按 URL 去重
+    // 直播源：手动 + 订阅导入，按 URL 去重
     const liveSeen = new Set<string>();
-    const liveSources = [...store.liveEnvSources, ...store.liveSubscriptions]
+    const liveSources = [...store.liveSubscriptions]
       .filter((s) => {
         if (liveSeen.has(s.url)) return false;
         liveSeen.add(s.url);
@@ -936,7 +925,7 @@ function SourceSubscriptions() {
               className="btn-ghost btn-sm"
               onClick={exportSources}
               disabled={
-                store.customAPIs.length + store.envSources.length + store.liveSubscriptions.length + store.liveEnvSources.length ===
+                store.customAPIs.length + store.liveSubscriptions.length ===
                 0
               }
             >
@@ -1152,17 +1141,12 @@ function SourceSubscriptions() {
   );
 }
 
-/** 配置导入导出（导出受登录门控；导入前先解析预览再确认，避免误覆盖） */
+/** 配置导入导出（导入前先解析预览再确认，避免误覆盖） */
 function ConfigIoPanel() {
   const { toast } = useToast();
-  const { verified, openLogin } = useAuth();
   const [pending, setPending] = useState<{ file: File; summary: string } | null>(null);
 
   const doExport = async () => {
-    if (verified === false) {
-      openLogin();
-      return;
-    }
     try {
       const json = await exportConfig();
       const blob = new Blob([json], { type: 'application/json' });

@@ -136,7 +136,7 @@ export function HistoryPanel({ open, onClose }: { open: boolean; onClose: () => 
 }
 
 function HistoryItem({ item }: { item: HistoryEntry }) {
-  // 精确订阅：整份 useAppStore() 会让每条历史在任意 store 变化（搜索健康度、测活写回等）时重渲染
+  // 精确订阅：整份 useAppStore() 会让每条历史在任意 store 变化（搜索健康度等）时重渲染
   const imageProxyMode = useAppStore((s) => s.imageProxyMode);
   const customImageProxy = useAppStore((s) => s.customImageProxy);
   const customAPIs = useAppStore((s) => s.customAPIs);

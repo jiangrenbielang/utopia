@@ -55,3 +55,16 @@ desktop/resources/companion/
 desktop/resources/mpv/
 desktop/.pyinstaller/
 desktop/.next/
+
+# 服务核编译产物（由 video/tsconfig.server.json 产出，可再生成，不入库）
+desktop/resources/api/
+desktop/Utopia/
+
+# ---- 网盘令牌（本地敏感数据：百度 refresh_token 落盘于此，不入库）----
+.utopia-data/
+video/.utopia-data/
+
+# ---- 个人复习计划（本地文档/导出，不入库；按文件名通配，避免出现具体计划名）----
+video/*复习计划*.md
+video/Utopia复习计划导入-*.json
+backup-personal-plan/

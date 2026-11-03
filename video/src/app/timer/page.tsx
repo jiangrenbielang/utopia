@@ -80,7 +80,7 @@ export default function TimerPage() {
           <div
             aria-hidden
             className="pointer-events-none absolute inset-x-0 -top-24 h-56 blur-2xl"
-            style={{ background: 'radial-gradient(50% 60% at 50% 50%, rgba(0,184,230,0.16), transparent 70%)' }}
+            style={{ background: 'radial-gradient(50% 60% at 50% 50%, rgb(var(--c-accent) / 0.16), transparent 70%)' }}
           />
 
           {!session ? (

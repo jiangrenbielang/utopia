@@ -1,9 +1,10 @@
-import { decodePathTarget, handleProxyRequest } from '@/lib/proxy-handlers';
+import { toServerRequest } from '@/server/adapt';
+import { pathProxyHandler } from '@/server/handlers/proxy';
 
 export const runtime = 'nodejs';
 
-/** 旧路径形式的通用代理：/api/proxy/<encodeURIComponent(target)>，保持兼容（详见 proxy-handlers.ts） */
-export async function GET(req: Request, ctx: { params: Promise<{ url: string }> }) {
-  const { url: encodedUrl } = await ctx.params;
-  return handleProxyRequest(req, decodePathTarget(encodedUrl));
+/** 薄壳：NextRequest + 动态段 → 服务核 handler → Web Response（逻辑见 src/server/handlers/proxy.ts） */
+export async function GET(req: Request, ctx: { params: Promise<{ url: string }> }): Promise<Response> {
+  const { url } = await ctx.params;
+  return pathProxyHandler(toServerRequest(req, { url }));
 }

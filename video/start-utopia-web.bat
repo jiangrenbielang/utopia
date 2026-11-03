@@ -11,12 +11,6 @@ echo.
 where node >nul 2>nul
 if errorlevel 1 goto no_node
 
-if exist ".env" goto have_env
-echo [INFO] .env not found. Creating it with default password: utopia2026
-echo [INFO] Please change the password in .env later.
->".env" echo PASSWORD=utopia2026
-:have_env
-
 if exist "node_modules" goto have_deps
 echo [INFO] First run: installing dependencies (may take a few minutes)...
 call npm install --no-audit --no-fund
@@ -46,7 +40,6 @@ start "" http://localhost:8080
 
 echo.
 echo [OK] Opened http://localhost:8080
-echo [OK] Access password: see .env
 echo [OK] You can close this window.
 echo [OK] To stop the server, close the "Utopia Web Server" window.
 ping -n 5 127.0.0.1 >nul

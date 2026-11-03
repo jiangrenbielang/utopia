@@ -6,11 +6,13 @@ import Hls, { type HlsConfig } from 'hls.js';
 
 import { PlaybackRecovery, describeHlsError } from '@/lib/playback-recovery';
 import { createHlsLoader } from '@/lib/hls-loader';
+import { guessMediaType } from '@/lib/media-type';
 import {
   getVideoPrefetcher,
   getNextEpisodePrefetcher,
 } from '@/lib/video-prefetcher';
 import { loadCacheSettings } from '@/lib/video-cache';
+import { readAccentColor } from './player-accent';
 import { formatTime } from '@/lib/utils';
 import { prefersTouchPointer } from '@/lib/touch-pointer';
 import {
@@ -462,6 +464,49 @@ export function PlayerShell({
     });
   };
 
+  /**
+   * 非 HLS（mp4 / mkv 等）地址：交给原生 `<video>`，并补上与 HLS 一致的续播与起播。
+   *
+   * 为什么需要单独一条：`setupHls` 里那套 restoreAndStart 只服务于 hls.js；
+   * 文件直传时 ArtPlayer 自己把 `video.src = url` 设好，若不在这里挂钩，
+   * 网盘视频就不会「从上次位置继续」，也不会在 `autoplay` 被拦时补一次 play。
+   */
+  const attachNativeRestore = (video: HTMLVideoElement) => {
+    restoreCleanupRef.current?.();
+    restoreCleanupRef.current = null;
+
+    let inFlight = false;
+    const restoreAndStart = async () => {
+      if (restoredRef.current || inFlight) return;
+      const duration = artRef.current?.duration || video.duration || 0;
+      if (!Number.isFinite(duration) || duration <= 0) return;
+      inFlight = true;
+      try {
+        const saved = (await propsRef.current.getRestorePosition?.()) ?? 0;
+        const currentDuration = artRef.current?.duration || video.duration || duration;
+        if (saved > 10 && Number.isFinite(currentDuration) && saved < currentDuration - 2) {
+          if (artRef.current) artRef.current.currentTime = saved;
+          showHint(`已从 ${formatTime(saved)} 继续播放`);
+        }
+        restoredRef.current = true;
+        restoreCleanupRef.current?.();
+        restoreCleanupRef.current = null;
+        video.play().catch(() => {});
+      } catch {
+        // IndexedDB 读取失败时不阻塞播放
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const events = ['loadedmetadata', 'durationchange', 'canplay'] as const;
+    const onEvent = () => { void restoreAndStart(); };
+    events.forEach((event) => video.addEventListener(event, onEvent));
+    restoreCleanupRef.current = () => {
+      events.forEach((event) => video.removeEventListener(event, onEvent));
+    };
+  };
+
   /** 换集：重置每集状态并切换到新 HLS 源（不重建 ArtPlayer）。 */
   const loadEpisode = (targetUrl: string) => {
     if (!targetUrl) return;
@@ -484,7 +529,17 @@ export function PlayerShell({
     setShowPoster(true);
     const art = artRef.current;
     if (!art) return;
-    setupHls(art.video, targetUrl, true);
+    if (guessMediaType(targetUrl) === 'hls') {
+      setupHls(art.video, targetUrl, true);
+    } else {
+      // 文件直传：销毁 hls 实例，清掉 type 让 ArtPlayer 走原生 src（保留进度恢复）
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      currentMediaUrlRef.current = targetUrl;
+      art.type = 'normal';
+      art.url = targetUrl;
+      attachNativeRestore(art.video);
+    }
   };
 
   // —— 创建播放器（仅一次，挂载即创建） ——
@@ -513,7 +568,15 @@ export function PlayerShell({
     const art = new Artplayer({
       container: containerRef.current,
       url: initialUrl,
-      type: 'm3u8',
+      /**
+       * 只有确实是 HLS 时才显式指定类型。
+       *
+       * ArtPlayer 的分发是 `type = option.type || getExt(url)`：一旦显式给了 'm3u8'，
+       * 它就会覆盖扩展名判断，把**所有**地址交给 hls.js —— mp4 直链（含网盘的
+       * `/api/netdisk/stream?fsid=…`）因此永远播不出来。
+       * 反过来，文件类地址不传 `type`，ArtPlayer 会直接 `video.src = url` 走原生播放。
+       */
+      type: guessMediaType(initialUrl) === 'hls' ? 'm3u8' : 'normal',
       volume: 0.8,
       autoplay: true,
       pip: true,
@@ -530,7 +593,8 @@ export function PlayerShell({
       playsInline: true,
       airplay: true,
       hotkey: false,
-      theme: '#2563eb',
+      // 主题色取当前主题的强调色令牌（原硬编码 #2563eb）；解析时机与取舍见 player-accent.ts
+      theme: readAccentColor(),
       lang: navigator.language.toLowerCase().startsWith('zh') ? 'zh-cn' : 'en',
       moreVideoAttr: { crossOrigin: 'anonymous', playsInline: true },
       // 上/下集放在播放键右侧：换集是看剧最高频的动作，不该让用户滚回页面下方找按钮
@@ -563,6 +627,9 @@ export function PlayerShell({
       },
     });
     artRef.current = art;
+
+    // 文件类地址由 ArtPlayer 直接赋给 video.src，hls 分支的续播逻辑不会执行；这里补上
+    if (guessMediaType(initialUrl) !== 'hls') attachNativeRestore(art.video);
 
     // 进度条区间可视化：初始渲染一次，换集 duration 变化时重绘
     renderSkipMarks();

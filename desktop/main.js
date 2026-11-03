@@ -6,16 +6,13 @@ const {
   Menu,
   dialog,
   ipcMain,
-  safeStorage,
-  session,
+  nativeTheme,
   shell,
 } = require('electron');
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
-const { spawn, spawnSync } = require('node:child_process');
 
 function bootLog(message) {
   try {
@@ -30,14 +27,23 @@ bootLog(`main loaded packaged=${app.isPackaged} exec=${process.execPath}`);
 const isDev = !app.isPackaged;
 const ROOT = path.resolve(__dirname, '..');
 const WEB_PORT = 3210;
-const COMPANION_PORT = 8765;
 const WEB_BASE = `http://127.0.0.1:${WEB_PORT}`;
 
-let config = { token: '', password: 'utopia2026', sessdata: '' };
+/**
+ * 标题栏方案（Windows）：
+ * - WCO（Window Controls Overlay）：隐藏系统标题栏，最小化/最大化/关闭按钮由系统
+ *   以覆盖层浮在应用顶栏右侧，顶栏整体成为可拖拽区——消除「系统标题栏 + 应用顶栏」双条割裂；
+ * - 玻璃材质：Win11 22H2（build ≥ 22621）起支持 backgroundMaterial，配合透明窗口，
+ *   页面里只让顶栏一条透出亚克力材质，正文区铺实色（见 globals.css 的 window-glass 规则）。
+ *   Win10 及更早版本回落为不透明窗口，顶栏接管与主题适配不受影响。
+ */
+const IS_WINDOWS = process.platform === 'win32';
+const WIN_BUILD = IS_WINDOWS ? parseInt((os.release().split('.').pop() || '0'), 10) : 0;
+const GLASS_SUPPORTED = IS_WINDOWS && WIN_BUILD >= 22621;
+
+let config = { allowPrivateUpstream: true };
 let configPath = '';
-let firstRun = false;
-let webProc = null;
-let companionProc = null;
+let webServer = null;
 let mainWindow = null;
 let settingsWindow = null;
 let quitting = false;
@@ -54,51 +60,21 @@ function log(...args) {
 
 function defaultConfig() {
   return {
-    token: crypto.randomBytes(24).toString('base64url'),
-    password: 'utopia2026',
-    sessdata: '',
+    // 自建网盘（AList / OpenList）常在本机或局域网；桌面数据层只监听环回地址，默认放行
+    allowPrivateUpstream: true,
   };
-}
-
-function encodeSecret(value) {
-  if (!value) return '';
-  try {
-    if (safeStorage.isEncryptionAvailable()) {
-      return `enc:${safeStorage.encryptString(value).toString('base64')}`;
-    }
-  } catch {
-    /* fall through */
-  }
-  return `plain:${Buffer.from(value, 'utf8').toString('base64')}`;
-}
-
-function decodeSecret(value) {
-  if (!value) return '';
-  try {
-    if (value.startsWith('enc:')) {
-      if (!safeStorage.isEncryptionAvailable()) return '';
-      return safeStorage.decryptString(Buffer.from(value.slice(4), 'base64'));
-    }
-    if (value.startsWith('plain:')) return Buffer.from(value.slice(6), 'base64').toString('utf8');
-  } catch {
-    return '';
-  }
-  return '';
 }
 
 function saveConfig() {
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
   const disk = {
-    token: config.token,
-    password: encodeSecret(config.password),
-    sessdata: encodeSecret(config.sessdata),
+    allowPrivateUpstream: config.allowPrivateUpstream !== false,
   };
   fs.writeFileSync(configPath, JSON.stringify(disk, null, 2), 'utf8');
 }
 
 function loadConfig() {
   configPath = path.join(app.getPath('userData'), 'config.json');
-  firstRun = !fs.existsSync(configPath);
   let disk = {};
   try {
     disk = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -107,24 +83,10 @@ function loadConfig() {
   }
   config = {
     ...defaultConfig(),
-    ...disk,
-    password: decodeSecret(disk.password) || 'utopia2026',
-    sessdata: decodeSecret(disk.sessdata) || '',
+    // 老配置文件没有这个字段：缺省按「开启」处理（与 defaultConfig 一致）
+    allowPrivateUpstream: disk.allowPrivateUpstream !== false,
   };
-  if (!disk.token) saveConfig();
-}
-
-function findMpv() {
-  const candidates = [];
-  if (isDev) {
-    if (process.env.MPV_PATH) candidates.push(process.env.MPV_PATH);
-    candidates.push(path.join(ROOT, 'desktop', 'resources', 'mpv', 'mpv.exe'));
-    candidates.push('C:\\Program Files\\MPV Player\\mpv.exe');
-    candidates.push('C:\\Program Files\\mpv\\mpv.exe');
-  } else {
-    candidates.push(path.join(process.resourcesPath, 'mpv', 'mpv.exe'));
-  }
-  return candidates.find((candidate) => candidate && fs.existsSync(candidate)) || '';
+  saveConfig();
 }
 
 function waitForHttp(url, timeoutMs, accept = (res) => res.statusCode < 500) {
@@ -147,117 +109,49 @@ function waitForHttp(url, timeoutMs, accept = (res) => res.statusCode < 500) {
   });
 }
 
-function startWeb() {
-  const server = isDev
-    ? path.join(ROOT, 'video', '.next', 'standalone', 'server.js')
-    : path.join(process.resourcesPath, 'web', 'server.js');
-  if (!fs.existsSync(server)) {
-    throw new Error('缺少 Next.js standalone 构建，请先在 desktop 目录执行 npm run build:web');
+/**
+ * 启动本地数据层：静态导出产物 + 服务核，都由本进程承载。
+ *
+ * 取代了原先 spawn 一个 Next.js standalone 服务的做法——桌面客户端不再需要长驻的
+ * Web 框架进程。**端口与 origin 仍是 127.0.0.1:3210**：localStorage / IndexedDB 按
+ * origin 隔离，换地址会让用户的课程库与学习记录全部读不到。
+ */
+async function startDataLayer() {
+  const webDir = isDev ? path.join(ROOT, 'video', 'out') : path.join(process.resourcesPath, 'web');
+  // apiRoot 是编译产物目录（server/ 与 app-version.json 都在它下面），显式声明避免路径层数算错
+  const apiRoot = isDev
+    ? path.join(ROOT, 'desktop', 'resources', 'api')
+    : path.join(process.resourcesPath, 'api');
+  const apiEntry = path.join(apiRoot, 'server', 'index.js');
+  // 版本号：服务核的 status 处理器读 process.env.APP_VERSION。Next 宿主由 next.config.ts
+  // 在构建期注入，主进程这边从构建产物里的 app-version.json 读取（打包后读不到 video/package.json）。
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(apiRoot, 'app-version.json'), 'utf8'));
+    if (meta && meta.version) process.env.APP_VERSION = String(meta.version);
+  } catch {
+    /* 版本元数据缺失时 /api/status 会回落成 dev，不影响功能 */
   }
-  webProc = spawn(process.execPath, [server], {
-    cwd: path.dirname(server),
-    env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: '1',
-      PORT: String(WEB_PORT),
-      HOSTNAME: '127.0.0.1',
-      PASSWORD: config.password,
-      NODE_ENV: 'production',
-      NEXT_TELEMETRY_DISABLED: '1',
-    },
-    windowsHide: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  webProc.stdout?.on('data', (chunk) => log('[web]', chunk.toString().trim()));
-  webProc.stderr?.on('data', (chunk) => log('[web:err]', chunk.toString().trim()));
-  webProc.on('exit', (code) => {
-    log('web exited', code);
-    if (!quitting) {
-      dialog.showErrorBox('Utopia Web 服务退出', `本地 Web 服务意外退出（code=${code}）。`);
-      app.quit();
-    }
-  });
-}
 
-async function startCompanion() {
-  const dataDir = path.join(app.getPath('userData'), 'companion-data');
-  fs.mkdirSync(dataDir, { recursive: true });
-  const env = {
-    ...process.env,
-    TOKEN: config.token,
-    SESSDATA: config.sessdata,
-    PORT: String(COMPANION_PORT),
-    HOST: '127.0.0.1',
-    MPV_PATH: findMpv(),
-    UTOPIA_DATA_DIR: dataDir,
-    PYTHONIOENCODING: 'utf-8',
-  };
-  let cmd;
-  let args;
-  let cwd;
-  if (isDev) {
-    const script = path.join(ROOT, 'companion', 'run.py');
-    if (!fs.existsSync(script)) throw new Error('本地 companion 目录不存在');
-    const python = process.env.PYTHON || (process.platform === 'win32' ? 'py' : 'python');
-    cmd = python;
-    args = python === 'py' ? ['-3', script] : [script];
-    cwd = path.dirname(script);
-  } else {
-    const exe = path.join(process.resourcesPath, 'companion', 'utopia-companion.exe');
-    if (!fs.existsSync(exe)) throw new Error('安装包缺少 utopia-companion.exe');
-    cmd = exe;
-    args = [];
-    cwd = path.dirname(exe);
-  }
-  companionProc = spawn(cmd, args, {
-    cwd,
-    env,
-    windowsHide: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  companionProc.stdout?.on('data', (chunk) => log('[companion]', chunk.toString().trim()));
-  companionProc.stderr?.on('data', (chunk) => log('[companion:err]', chunk.toString().trim()));
-  companionProc.on('exit', (code) => {
-    log('companion exited', code);
-    if (!quitting) {
-      console.error('companion exited', code);
-    }
-  });
-  await waitForHttp(`http://127.0.0.1:${COMPANION_PORT}/api/health`, 30000);
-}
+  /**
+   * 放行内网上游媒体：自建 AList / OpenList 的直链通常就在本机或局域网
+   * （`http://127.0.0.1:5244`、`http://192.168.x.x:5244`）。桌面数据层只监听 127.0.0.1，
+   * 只有本机进程能访问，因此默认放行；用户可在设置窗里关掉。
+   */
+  process.env.ALLOW_PRIVATE_UPSTREAM = config.allowPrivateUpstream === false ? '0' : '1';
 
-async function loginWeb() {
-  const response = await fetch(`${WEB_BASE}/api/auth`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: config.password }),
-  });
-  if (!response.ok) {
-    console.error('web login failed', response.status);
-    return;
-  }
-  const rawCookies = typeof response.headers.getSetCookie === 'function'
-    ? response.headers.getSetCookie()
-    : [response.headers.get('set-cookie')].filter(Boolean);
-  for (const raw of rawCookies) {
-    const pair = String(raw).split(';', 1)[0];
-    const eq = pair.indexOf('=');
-    if (eq <= 0) continue;
-    const name = pair.slice(0, eq);
-    const value = pair.slice(eq + 1);
-    await session.defaultSession.cookies.set({
-      url: WEB_BASE,
-      name,
-      value,
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-    });
-  }
-}
+  /**
+   * 网盘令牌的落盘目录：放到 Electron 的 userData 下，而不是安装目录
+   * （安装目录可能只读、且卸载/重装会被清掉——这正是上一次把 AList 数据弄丢的原因）。
+   */
+  process.env.UTOPIA_DATA_DIR = path.join(app.getPath('userData'), 'netdisk');
 
-function navigate(pathname) {
-  if (mainWindow) mainWindow.loadURL(`${WEB_BASE}${pathname}`);
+  webServer = await require('./web-server.js').start({
+    webDir,
+    apiEntry,
+    port: WEB_PORT,
+    host: '127.0.0.1',
+    log: (message) => log('[data]', message),
+  });
 }
 
 function openSettings() {
@@ -267,14 +161,15 @@ function openSettings() {
   }
   settingsWindow = new BrowserWindow({
     width: 560,
-    height: 560,
+    height: 420,
     parent: mainWindow || undefined,
     modal: false,
     resizable: false,
     minimizable: false,
     maximizable: false,
     title: 'Utopia 设置',
-    backgroundColor: '#0b1220',
+    // 跟随 nativeTheme（主窗口页面切主题时会同步）：避免设置窗弹出时闪深色底
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f11' : '#f5f5f7',
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),
       contextIsolation: true,
@@ -287,54 +182,61 @@ function openSettings() {
   });
 }
 
+/**
+ * **不创建应用菜单栏**（Windows 上「文件 / 编辑 / 视图 / 帮助」那一条）。
+ *
+ * 需求：界面要干净、不与页面顶栏争抢顶部空间，所以整条菜单去掉。
+ * 随之失去的能力都改到窗口内快捷键（见 bindWindowShortcuts）：
+ * 缩放、整屏、开发者工具、打开桌面设置窗。
+ */
 function buildMenu() {
-  const template = [
-    {
-      label: 'Utopia',
-      submenu: [
-        { label: '首页', click: () => navigate('/') },
-        { label: '课程库', click: () => navigate('/courses') },
-        { label: '本地高清', click: () => navigate('/local-player') },
-        { label: '统计', click: () => navigate('/stats') },
-        { type: 'separator' },
-        { label: '设置 B 站登录 / 密码', click: openSettings },
-        { type: 'separator' },
-        { role: 'quit', label: '退出' },
-      ],
-    },
-    {
-      label: '编辑',
-      submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }],
-    },
-    {
-      label: '视图',
-      submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        ...(isDev ? [{ role: 'toggleDevTools' }] : []),
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
-      ],
-    },
-    {
-      label: '帮助',
-      submenu: [
-        {
-          label: '打开本地高清说明',
-          click: () => navigate('/local-player'),
-        },
-        {
-          label: '打开项目目录',
-          click: () => shell.openPath(ROOT).catch(() => {}),
-        },
-      ],
-    },
-  ];
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  Menu.setApplicationMenu(null);
+}
+
+/**
+ * 无菜单栏后的窗口级快捷键。
+ *
+ * 只在主窗口内生效（`before-input-event`），不注册系统级快捷键——否则会和别的软件抢键。
+ * 与原来菜单里的 role 对齐：zoomIn/zoomOut/resetZoom、togglefullscreen、toggleDevTools；
+ * 另加 `Ctrl+,` 打开桌面设置窗（菜单删除后它唯一的入口，网页「设置」页也有按钮）。
+ */
+function bindWindowShortcuts(win) {
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const ctrl = input.control || input.meta;
+    const key = String(input.key || '');
+    const webContents = win.webContents;
+
+    if (ctrl && (key === '=' || key === '+')) {
+      webContents.setZoomLevel(webContents.getZoomLevel() + 0.5);
+      event.preventDefault();
+      return;
+    }
+    if (ctrl && key === '-') {
+      webContents.setZoomLevel(webContents.getZoomLevel() - 0.5);
+      event.preventDefault();
+      return;
+    }
+    if (ctrl && key === '0') {
+      webContents.setZoomLevel(0);
+      event.preventDefault();
+      return;
+    }
+    if (ctrl && key === ',') {
+      openSettings();
+      event.preventDefault();
+      return;
+    }
+    if (key === 'F11') {
+      win.setFullScreen(!win.isFullScreen());
+      event.preventDefault();
+      return;
+    }
+    if (isDev && ctrl && input.shift && key.toLowerCase() === 'i') {
+      webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
 }
 
 function createWindow() {
@@ -344,7 +246,28 @@ function createWindow() {
     minWidth: 960,
     minHeight: 640,
     show: true,
-    backgroundColor: '#0b1220',
+    ...(GLASS_SUPPORTED
+      ? {
+          // 玻璃标题栏：透明窗口 + 亚克力材质（材质透过页面顶栏的半透明底显示）
+          transparent: true,
+          backgroundColor: '#00000000',
+          backgroundMaterial: 'acrylic',
+        }
+      : {
+          // 初始底色按系统主题：页面首屏脚本会把页面主题同步过来（nativeTheme），
+          // 此后随切换刷新。避免浅色用户首启时窗口闪一帧深色。
+          backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f11' : '#f5f5f7',
+        }),
+    // 顶栏即标题栏：隐藏系统标题栏，窗口控制按钮以覆盖层浮在应用顶栏（高 56 = h-14）右侧；
+    // 覆盖层底色全透明，仅按钮图标按主题取色（切换时经 setTitleBarOverlay 刷新）
+    ...(IS_WINDOWS && {
+      titleBarStyle: 'hidden',
+      titleBarOverlay: {
+        height: 56,
+        color: '#00000000',
+        symbolColor: nativeTheme.shouldUseDarkColors ? '#ffffff' : '#141416',
+      },
+    }),
     title: 'Utopia',
     icon: path.join(__dirname, 'icon.ico'),
     webPreferences: {
@@ -364,6 +287,17 @@ function createWindow() {
   mainWindow.webContents.on('did-fail-load', (_event, code, description, url) => {
     log('did-fail-load', code, description, url);
   });
+  /**
+   * 渲染层日志转发：页面被错误边界接住时只显示一句通用文案，异常堆栈只进浏览器控制台，
+   * 而用户看不到控制台。转发到 desktop.log 才能在出问题时定位到具体报错。
+   */
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    const text = String(message || '');
+    // 过滤噪音：只留 warning/error 级别的渲染层日志
+    if (level >= 2 || text.includes('[Utopia]') || text.includes('Error')) {
+      log('[renderer]', `lvl=${level}`, text.slice(0, 2000), `${sourceId || '-'}:${line ?? '-'}`);
+    }
+  });
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     log('render process gone', JSON.stringify(details));
   });
@@ -371,45 +305,68 @@ function createWindow() {
     if (/^https?:/i.test(url)) shell.openExternal(url).catch(() => {});
     return { action: 'deny' };
   });
+  // 菜单栏已移除：缩放 / 整屏 / 开发者工具 / 打开设置 都靠窗口内快捷键
+  bindWindowShortcuts(mainWindow);
   mainWindow.loadURL(`${WEB_BASE}${process.env.UTOPIA_START_PATH || '/'}`);
   mainWindow.show();
-}
-
-function stopChild(child) {
-  if (!child || child.killed) return;
-  try {
-    if (process.platform === 'win32') {
-      spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
-        windowsHide: true,
-        stdio: 'ignore',
-      });
-    } else {
-      child.kill('SIGTERM');
-    }
-  } catch {
-    /* ignore */
-  }
 }
 
 function registerIpc() {
   ipcMain.on('desktop:runtime', (event) => {
     event.returnValue = {
       isDesktop: true,
-      companionUrl: `http://127.0.0.1:${COMPANION_PORT}`,
-      token: config.token,
     };
   });
   ipcMain.on('desktop:open-settings', () => openSettings());
+  /**
+   * WCO 几何与玻璃能力（同步）：Electron 自带 getTitleBarOverlayRect
+   * （与页面侧 CSS env(titlebar-area-*) 同源数据）。渲染层首屏脚本用它把
+   * --ut-titlebar-w/h 写到 <html> 上，供 Header 的 drag 区让位计算；
+   * glass 标志告知页面可以启用玻璃标题栏样式（.glass-titlebar）。
+   * 非桌面 / 非 WCO 环境返回 null，页面回落为浏览器外观。
+   */
+  ipcMain.on('desktop:titlebar-info', (event) => {
+    try {
+      const rect = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getTitleBarOverlayRect() : null;
+      event.returnValue = rect ? { width: rect.width, height: rect.height, glass: GLASS_SUPPORTED } : null;
+    } catch {
+      event.returnValue = null;
+    }
+  });
+  /**
+   * 页面主题 → 原生主题同步：渲染层切亮/暗时把 nativeTheme 一并切过去，
+   * 系统控件（滚动条、对话框、WCO 按钮图标）才会跟页面同色。
+   * 同时刷新窗口底色（非玻璃模式防刷新闪深色）与 WCO 覆盖层图标颜色。
+   */
+  ipcMain.handle('desktop:set-native-theme', (_event, dark) => {
+    try {
+      nativeTheme.themeSource = dark ? 'dark' : 'light';
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (!GLASS_SUPPORTED) {
+          mainWindow.setBackgroundColor(dark ? '#0f0f11' : '#f5f5f7');
+        }
+        if (IS_WINDOWS) {
+          // WCO 覆盖层图标色随主题：深色顶栏白图标、浅色顶栏近黑图标
+          mainWindow.setTitleBarOverlay({
+            color: '#00000000',
+            symbolColor: dark ? '#ffffff' : '#141416',
+          });
+        }
+      }
+      log(`native theme -> ${dark ? 'dark' : 'light'}`);
+    } catch (error) {
+      log('native theme sync failed', String(error?.message || error));
+    }
+    return { ok: true };
+  });
   ipcMain.handle('settings:load', () => ({
-    sessdataConfigured: Boolean(config.sessdata),
-    passwordConfigured: Boolean(config.password),
+    allowPrivateUpstream: config.allowPrivateUpstream !== false,
   }));
   ipcMain.handle('settings:save', (_event, data) => {
-    const nextSessdata = String(data?.sessdata || '').trim();
-    const nextPassword = String(data?.password || '').trim();
-    if (data?.clearSessdata) config.sessdata = '';
-    else if (nextSessdata) config.sessdata = nextSessdata;
-    if (nextPassword) config.password = nextPassword;
+    // 布尔项：显式传入才改，未传（如老版设置窗）保持原值
+    if (typeof data?.allowPrivateUpstream === 'boolean') {
+      config.allowPrivateUpstream = data.allowPrivateUpstream;
+    }
     saveConfig();
     setTimeout(() => {
       app.relaunch();
@@ -425,16 +382,15 @@ function registerIpc() {
 async function bootstrap() {
   app.setAppUserModelId('com.utopia.desktop');
   loadConfig();
-  log('bootstrap', JSON.stringify({ isDev, configPath, firstRun, hasSessdata: Boolean(config.sessdata) }));
+  log('bootstrap', JSON.stringify({ isDev, configPath }));
   registerIpc();
   buildMenu();
 
-  let companionError = '';
   try {
-    log('starting web');
-    startWeb();
+    log('starting data layer');
+    await startDataLayer();
     await waitForHttp(`${WEB_BASE}/api/status`, 30000);
-    log('web ready');
+    log('data layer ready');
   } catch (error) {
     log('web failed', error?.message || error);
     dialog.showErrorBox('Utopia 启动失败', String(error?.message || error));
@@ -442,37 +398,8 @@ async function bootstrap() {
     return;
   }
 
-  try {
-    log('starting companion');
-    await startCompanion();
-    log('companion ready');
-  } catch (error) {
-    companionError = String(error?.message || error);
-    log('companion failed', companionError);
-  }
-
-  try {
-    log('login web');
-    await loginWeb();
-  } catch (error) {
-    log('loginWeb error', error?.message || error);
-  }
-
   log('creating window');
   createWindow();
-  if (firstRun) {
-    mainWindow?.webContents.once('did-finish-load', () => openSettings());
-  }
-  if (companionError) {
-    mainWindow?.webContents.once('did-finish-load', () => {
-      dialog.showMessageBox(mainWindow, {
-        type: 'warning',
-        title: '本地高清不可用',
-        message: '本地 mpv 伴生程序没有启动。',
-        detail: `${companionError}\n\nWeb 平台仍可使用；请检查安装包中的 companion/mpv，或在设置中确认配置。`,
-      });
-    });
-  }
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -499,8 +426,14 @@ if (!gotLock) {
 app.on('before-quit', () => {
   log('before-quit');
   quitting = true;
-  stopChild(webProc);
-  stopChild(companionProc);
+  if (webServer) {
+    try {
+      webServer.close();
+    } catch {
+      /* ignore */
+    }
+    webServer = null;
+  }
 });
 
 app.on('window-all-closed', () => {

@@ -143,84 +143,96 @@ export function AggregatedCard({
       : undefined;
 
   return (
-    <div
-      ref={inViewRef}
-      className={cn('card', !multi && 'hover:scale-[1.02] hover:shadow-md', multi && expanded && 'ring-1 ring-accent/40')}
-    >
-      {/* 不用 h-full：展开面板需要撑高卡片，等高裁切会让面板不可见 */}
-      <div
-        className="flex h-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60"
-        role="button"
-        tabIndex={0}
-        aria-expanded={multi ? expanded : undefined}
-        onClick={activate}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            activate();
-          }
-        }}
-      >
-        {showImg ? (
-          <div className="relative flex-shrink-0 w-[105px] sm:w-[120px] aspect-[2/3] bg-chip">
-            <SmartImage
-              url={group.pic}
-              mode={imageProxyMode}
-              customProxy={customImageProxy}
-              alt={group.name}
-              className="absolute inset-0 h-full w-full object-cover"
-              onExhausted={() => setImgFailed(true)}
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent" />
-            {multi && (
-              <span className="absolute top-1.5 left-1.5 tag bg-black/70 text-accent font-medium">
-                {group.items.length} 源
-              </span>
-            )}
-          </div>
-        ) : (
-          <div className="relative flex-shrink-0 w-[105px] sm:w-[120px] aspect-[2/3] bg-chip flex items-center justify-center">
-            <svg className="w-8 h-8 text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4v16m10-16v16M3 6a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6zm4 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6zm8 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6zm4 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6z" />
-            </svg>
-            {multi && (
-              <span className="absolute top-1.5 left-1.5 tag bg-black/70 text-accent font-medium">
-                {group.items.length} 源
-              </span>
-            )}
-          </div>
-        )}
+    <div ref={inViewRef} className={cn('poster-card-hover h-full', multi && expanded && 'relative z-10')}>
+      {/* TVBox 风竖版海报卡：海报主导，标题与来源信息贴在海报下方；多源时向下展开来源列表 */}
+      <div className={cn('card flex h-full flex-col overflow-hidden', multi && expanded && 'ring-1 ring-accent/60')}>
+        <div
+          className="flex flex-1 cursor-pointer flex-col focus-ring"
+          role="button"
+          tabIndex={0}
+          aria-expanded={multi ? expanded : undefined}
+          onClick={activate}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              activate();
+            }
+          }}
+        >
+          {showImg ? (
+            <div className="poster">
+              <SmartImage
+                url={group.pic}
+                mode={imageProxyMode}
+                customProxy={customImageProxy}
+                alt={group.name}
+                className="absolute inset-0 h-full w-full object-cover"
+                onExhausted={() => setImgFailed(true)}
+              />
+              {/* 备注压在图上：底部黑→透明遮罩保证文字可读 */}
+              <div className="poster-scrim absolute inset-x-0 bottom-0 h-14" />
+              {(group.remarks || (multi && !expanded)) && (
+                <p className="absolute inset-x-0 bottom-0 px-2 pb-1 text-[11px] font-medium text-white/90 line-clamp-1">
+                  {group.remarks}
+                </p>
+              )}
+              {/* 角标：右上角画质 / 来源数，左上角 18+ */}
+              <div className="absolute right-1.5 top-1.5 flex flex-col items-end gap-1">
+                {singleKey && (
+                  <QualityBadge
+                    entry={qualities[singleKey]}
+                    loading={probing[singleKey]}
+                    onRetry={singleItem ? () => retry([singleItem]) : undefined}
+                  />
+                )}
+                {multi && (
+                  <span className="tag bg-black/75 font-medium text-white">{group.items.length} 源</span>
+                )}
+              </div>
+              {adult && <span className="tag absolute left-1.5 top-1.5 bg-black/75 text-danger">(18+)</span>}
+            </div>
+          ) : (
+            <div className="poster flex items-center justify-center">
+              <svg className="w-8 h-8 text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4v16m10-16v16M3 6a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6zm4 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6zm8 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6zm4 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6z" />
+              </svg>
+              <div className="absolute right-1.5 top-1.5 flex flex-col items-end gap-1">
+                {singleKey && (
+                  <QualityBadge
+                    entry={qualities[singleKey]}
+                    loading={probing[singleKey]}
+                    onRetry={singleItem ? () => retry([singleItem]) : undefined}
+                  />
+                )}
+                {multi && (
+                  <span className="tag bg-black/75 font-medium text-white">{group.items.length} 源</span>
+                )}
+              </div>
+              {adult && <span className="tag absolute left-1.5 top-1.5 bg-black/75 text-danger">(18+)</span>}
+            </div>
+          )}
 
-        <div className="p-2.5 flex flex-col flex-grow min-w-0">
-          <div className="flex-grow">
-            <h3 className="font-semibold text-sm text-content mb-1.5 line-clamp-2" title={group.name}>
+          <div className="flex min-w-0 flex-1 flex-col p-2">
+            <h3 className="text-[13px] font-medium leading-snug text-content line-clamp-2" title={group.name}>
               {group.name}
             </h3>
-            <div className="flex flex-wrap gap-1 mb-1.5">
-              {group.typeName && <span className="tag bg-accent/15 text-accent">{group.typeName}</span>}
-              {group.year && <span className="tag bg-purple-500/15 text-purple-600 dark:text-purple-300">{group.year}</span>}
-              {adult && <span className="tag bg-pink-500/15 text-pink-600 dark:text-pink-400">(18+)</span>}
-              {/* 单源卡片没有展开列表，画质只能在这里露出；失败态可点重试 */}
-              {singleKey && (
-                <QualityBadge
-                  entry={qualities[singleKey]}
-                  loading={probing[singleKey]}
-                  onRetry={singleItem ? () => retry([singleItem]) : undefined}
-                />
-              )}
+            <div className="mt-auto flex items-center gap-1.5 pt-1.5 text-[11px] text-faint">
+              {group.typeName && <span className="shrink-0 truncate max-w-[45%]">{group.typeName}</span>}
+              {group.year && <span className="shrink-0">{group.year}</span>}
+              <span className="ml-auto truncate" title={multi ? undefined : group.items[0].sourceName}>
+                {multi ? `${group.items.length} 个来源` : group.items[0].sourceName}
+              </span>
             </div>
-            <p className="text-xs text-muted line-clamp-2 mb-2">{group.remarks || '暂无介绍'}</p>
-          </div>
-          <div className="flex items-center justify-between gap-1.5 mt-auto pt-1.5 border-t border-line">
-            <span className="tag bg-chip text-muted truncate max-w-[80%]">
-              {multi ? `${group.items.length} 个来源` : group.items[0].sourceName}
-            </span>
+            {/* 无封面时备注只能放在正文里 */}
+            {!showImg && group.remarks && (
+              <p className="mt-1 text-[11px] text-muted line-clamp-2">{group.remarks}</p>
+            )}
             {multi && (
-              <span className="flex items-center gap-1 shrink-0">
+              <div className="mt-1.5 flex items-center gap-1.5">
                 {/* 收起态先给结论：最高画质比「N 个来源」更影响要不要点开 */}
                 {progress.best && (
                   <span
-                    className="tag bg-accent/15 text-accent font-medium"
+                    className="tag bg-accent/15 font-medium text-accent"
                     title={
                       progress.known < progress.total
                         ? `已探到 / 实测的最高画质（${progress.known}/${progress.total} 个来源已有结论）`
@@ -230,6 +242,9 @@ export function AggregatedCard({
                     {progress.best}
                   </span>
                 )}
+                <span className="ml-auto text-[10px] text-faint">
+                  {expanded ? '收起来源' : '选择来源'}
+                </span>
                 <svg
                   className={cn('w-4 h-4 text-faint transition-transform', expanded && 'rotate-180')}
                   fill="none"
@@ -239,94 +254,97 @@ export function AggregatedCard({
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
-              </span>
+              </div>
             )}
           </div>
         </div>
-      </div>
 
-      {multi && expanded && (
-        <div className="border-t border-line p-2.5 animate-fade-in">
-          <div className="flex items-baseline justify-between gap-2 mb-1.5">
-            <p className="text-[10px] text-faint">
-              选择来源
-              {sharedRemarks ? ` · 均 ${sharedRemarks}` : ''}
-            </p>
-            {progress.total > 0 &&
-              (progress.done < progress.total ? (
-                <p className="text-[10px] text-faint tabular-nums">
-                  探测中 {progress.done}/{progress.total}
-                </p>
-              ) : (
-                // 探完后「3/3」已经没有信息量，换成用户真正要的结论
-                <p className="text-[10px] text-accent tabular-nums">
-                  {progress.best ? `最高 ${progress.best}` : '未能探到画质'}
-                  {progress.failed > 0 ? ` · ${progress.failed} 源未探到` : ''}
-                </p>
-              ))}
-          </div>
-          {/*
-            单列全宽行：两列在卡片实际宽度（约 330px）下每列只剩 148px，
-            源名必截断，且源数为奇数时必然留半行空。一行内「源名 / 画质 / 集数 / 播放」
-            四段排开，信息密度更高也更容易纵向扫读。
-          */}
-          <div className="flex flex-col gap-1.5">
-            {sortedItems.map((item) => {
-              const itemKey = qualityKey(item.sourceKey, item.vodId);
-              const label = compactRemarks(item.remarks);
-              const isBest = itemKey === bestKey;
-              return (
-                <div
-                  key={`${item.sourceKey}_${item.vodId}`}
-                  role="button"
-                  tabIndex={0}
-                  className={cn(
-                    'group flex w-full min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2',
-                    'text-xs transition-all cursor-pointer',
-                    'bg-chip hover:border-accent hover:bg-accent/10',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
-                    isBest ? 'border-accent/50' : 'border-line',
-                    item.isAdult && 'border-pink-500/30'
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpen(item);
-                  }}
-                  onKeyDown={(e) => {
-                    // 不拦冒泡会连带触发整卡的 activate（外层 div 也在监听 Enter/Space）
-                    if (e.key !== 'Enter' && e.key !== ' ') return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onOpen(item);
-                  }}
-                  aria-label={`使用 ${item.sourceName} 播放${label && !sharedRemarks ? `，${label}` : ''}`}
-                >
-                  <span className="font-medium text-content truncate flex-1 min-w-0">{item.sourceName}</span>
-                  <QualityBadge
-                    entry={qualities[itemKey]}
-                    loading={probing[itemKey]}
-                    onRetry={() => retry([item])}
-                    // 定宽 + 等宽数字：三行的 360P / 540P / 1080P 左缘对齐，不随字符数抖动
-                    className="min-w-[3.25rem] justify-center tabular-nums"
-                  />
-                  {/* 集数一致时已提到表头，逐行不再重复 */}
-                  {!sharedRemarks && label && (
-                    <span className="text-faint shrink-0 tabular-nums">{label}</span>
-                  )}
-                  <svg
-                    className="w-3.5 h-3.5 text-accent shrink-0 transition-transform group-hover:translate-x-0.5"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden
+        {multi && expanded && (
+          <div className="border-t border-line p-2 animate-fade-in">
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <p className="text-[10px] text-faint">
+                选择来源
+                {sharedRemarks ? ` · 均 ${sharedRemarks}` : ''}
+              </p>
+              {progress.total > 0 &&
+                (progress.done < progress.total ? (
+                  <p className="text-[10px] text-faint tabular-nums">
+                    探测中 {progress.done}/{progress.total}
+                  </p>
+                ) : (
+                  // 探完后「3/3」已经没有信息量，换成用户真正要的结论
+                  <p className="text-[10px] text-accent tabular-nums">
+                    {progress.best ? `最高 ${progress.best}` : '未能探到画质'}
+                    {progress.failed > 0 ? ` · ${progress.failed} 源未探到` : ''}
+                  </p>
+                ))}
+            </div>
+            {/*
+              竖版海报卡在网格里只有 150–250px 宽：来源行改成上下两段（源名 / 画质+集数），
+              横向四段排开在此宽度下必然全部截断。
+            */}
+            <div className="flex flex-col gap-1.5">
+              {sortedItems.map((item) => {
+                const itemKey = qualityKey(item.sourceKey, item.vodId);
+                const label = compactRemarks(item.remarks);
+                const isBest = itemKey === bestKey;
+                return (
+                  <div
+                    key={`${item.sourceKey}_${item.vodId}`}
+                    role="button"
+                    tabIndex={0}
+                    className={cn(
+                      'group flex w-full min-w-0 flex-col gap-1 rounded-md border px-2 py-1.5',
+                      'text-xs transition-colors cursor-pointer',
+                      'bg-chip hover:border-accent hover:bg-accent/10',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
+                      isBest ? 'border-accent/50' : 'border-line',
+                      item.isAdult && 'border-pink-500/30'
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpen(item);
+                    }}
+                    onKeyDown={(e) => {
+                      // 不拦冒泡会连带触发整卡的 activate（外层 div 也在监听 Enter/Space）
+                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onOpen(item);
+                    }}
+                    aria-label={`使用 ${item.sourceName} 播放${label && !sharedRemarks ? `，${label}` : ''}`}
                   >
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
-              );
-            })}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="min-w-0 flex-1 truncate font-medium text-content">{item.sourceName}</span>
+                      <svg
+                        className="w-3.5 h-3.5 shrink-0 text-accent transition-transform group-hover:translate-x-0.5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden
+                      >
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <QualityBadge
+                        entry={qualities[itemKey]}
+                        loading={probing[itemKey]}
+                        onRetry={() => retry([item])}
+                        // 定宽 + 等宽数字：各行的 360P / 540P / 1080P 左缘对齐，不随字符数抖动
+                        className="min-w-[3.25rem] justify-center tabular-nums"
+                      />
+                      {/* 集数一致时已提到表头，逐行不再重复 */}
+                      {!sharedRemarks && label && (
+                        <span className="shrink-0 text-[10px] text-faint tabular-nums">{label}</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -340,7 +358,7 @@ export function VideoCard({ item, onClick }: { item: SearchResultItem; onClick: 
 
   return (
     <div
-      className="card cursor-pointer hover:scale-[1.02] hover:shadow-md h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      className="card poster-card-hover cursor-pointer overflow-hidden focus-ring"
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -352,42 +370,45 @@ export function VideoCard({ item, onClick }: { item: SearchResultItem; onClick: 
         }
       }}
     >
-      <div className="flex h-full">
-        {showImg ? (
-          <div className="relative flex-shrink-0 w-[105px] sm:w-[120px] aspect-[2/3] bg-chip">
-            <SmartImage
-              url={item.pic}
-              mode={imageProxyMode}
-              customProxy={customImageProxy}
-              alt={item.name}
-              className="h-full w-full object-cover"
-              onExhausted={() => setImgFailed(true)}
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent" />
-          </div>
-        ) : (
-          <div className="flex-shrink-0 w-[105px] sm:w-[120px] aspect-[2/3] bg-chip flex items-center justify-center">
-            <svg className="w-8 h-8 text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4v16m10-16v16M3 6a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6zm4 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6zm8 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6zm4 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6z" />
-            </svg>
-          </div>
-        )}
-
-        <div className="p-2.5 flex flex-col flex-grow min-w-0">
-          <div className="flex-grow">
-            <h3 className="font-semibold text-sm text-content mb-1.5 line-clamp-2" title={item.name}>
-              {item.name}
-            </h3>
-            <div className="flex flex-wrap gap-1 mb-1.5">
-              {item.typeName && <span className="tag bg-accent/15 text-accent">{item.typeName}</span>}
-              {item.year && <span className="tag bg-purple-500/15 text-purple-600 dark:text-purple-300">{item.year}</span>}
-            </div>
-            <p className="text-xs text-muted line-clamp-2 mb-2">{formatRemarks(item.remarks) || '暂无介绍'}</p>
-          </div>
-          <div className="flex items-center justify-between mt-auto pt-1.5 border-t border-line">
-            <span className="tag bg-chip text-muted truncate max-w-[80%]">{item.sourceName}</span>
-          </div>
+      {showImg ? (
+        <div className="poster">
+          <SmartImage
+            url={item.pic}
+            mode={imageProxyMode}
+            customProxy={customImageProxy}
+            alt={item.name}
+            className="absolute inset-0 h-full w-full object-cover"
+            onExhausted={() => setImgFailed(true)}
+          />
+          <div className="poster-scrim absolute inset-x-0 bottom-0 h-14" />
+          {item.remarks && (
+            <p className="absolute inset-x-0 bottom-0 px-2 pb-1 text-[11px] font-medium text-white/90 line-clamp-1">
+              {formatRemarks(item.remarks)}
+            </p>
+          )}
         </div>
+      ) : (
+        <div className="poster flex items-center justify-center">
+          <svg className="w-8 h-8 text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4v16m10-16v16M3 6a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6zm4 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6zm8 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6zm4 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6z" />
+          </svg>
+        </div>
+      )}
+
+      <div className="p-2">
+        <h3 className="text-[13px] font-medium leading-snug text-content line-clamp-2" title={item.name}>
+          {item.name}
+        </h3>
+        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-faint">
+          {item.typeName && <span className="shrink-0 truncate max-w-[45%]">{item.typeName}</span>}
+          {item.year && <span className="shrink-0">{item.year}</span>}
+          <span className="ml-auto truncate" title={item.sourceName}>
+            {item.sourceName}
+          </span>
+        </div>
+        {!showImg && item.remarks && (
+          <p className="mt-1 text-[11px] text-muted line-clamp-2">{formatRemarks(item.remarks)}</p>
+        )}
       </div>
     </div>
   );
@@ -402,7 +423,7 @@ export function DoubanCard({ item, onClick }: { item: { title: string; cover: st
 
   return (
     <div
-      className="card cursor-pointer hover:scale-[1.03] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      className="card poster-card-hover cursor-pointer overflow-hidden focus-ring"
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -414,7 +435,7 @@ export function DoubanCard({ item, onClick }: { item: { title: string; cover: st
         }
       }}
     >
-      <div className="relative aspect-[2/3] bg-chip">
+      <div className="poster">
         {item.cover && !imgFailed ? (
           <SmartImage
             url={item.cover}

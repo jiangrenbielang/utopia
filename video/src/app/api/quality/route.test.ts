@@ -1,7 +1,7 @@
 /**
  * 批量画质探测接口单测：同 URL + detail + 影片的并发请求要合并成一次上游探测，
  * 但结果仍按各自条目的 sourceKey 返回（直接按 cacheKey 去重会把另一个源的徽章吞掉）。
- * 上游与鉴权一律 mock，不产生网络请求。
+ * 上游一律 mock，不产生网络请求。
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,11 +15,6 @@ const state = vi.hoisted(() => ({
   abort: false,
   /** 内存缓存，模拟 fetch-utils 内的 getCache/setCache */
   cache: new Map<string, { value: unknown; expiresAt: number }>(),
-}));
-
-vi.mock('@/lib/api-guard', () => ({
-  // 接口鉴权在本测试范围内不关心，假装放行
-  guardRequest: vi.fn(() => null),
 }));
 
 vi.mock('@/lib/fetch-utils', () => ({

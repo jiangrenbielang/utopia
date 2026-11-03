@@ -1,23 +1,11 @@
-import { NextResponse } from 'next/server';
-import { guardRequest } from '@/lib/api-guard';
-import { fetchBangumiCalendar } from '@/lib/bangumi';
+import { bangumiHandler } from '@/server/handlers/bangumi';
 
 export const runtime = 'nodejs';
 
-/** Bangumi 每日放送（免 key）：服务端直连 + 缓存，作为首页推荐的备用数据源 */
-export async function GET(req: Request) {
-  const guarded = guardRequest(req);
-  if (guarded) return guarded;
-
-  try {
-    const days = await fetchBangumiCalendar();
-    return NextResponse.json({
-      days: Object.entries(days).map(([weekday, items]) => ({ weekday: Number(weekday), items })),
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : '新番放送表获取失败' },
-      { status: 502 }
-    );
-  }
+/**
+ * 薄壳：Next.js Route Handler → 服务核 handler（逻辑见 src/server/handlers/bangumi.ts）。
+ * 每日放送表与请求参数无关，服务核 handler 无入参。
+ */
+export function GET(): Promise<Response> {
+  return bangumiHandler();
 }

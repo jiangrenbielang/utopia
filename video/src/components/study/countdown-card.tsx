@@ -23,7 +23,7 @@ export function CountdownCard({ className }: { className?: string }) {
         <div
           aria-hidden
           className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full blur-2xl"
-          style={{ background: 'radial-gradient(circle, rgba(0,184,230,0.22), transparent 65%)' }}
+          style={{ background: 'radial-gradient(circle, rgb(var(--c-accent) / 0.22), transparent 65%)' }}
         />
         <div className="relative flex items-start justify-between gap-3">
           <div>
@@ -33,7 +33,7 @@ export function CountdownCard({ className }: { className?: string }) {
             </p>
             <div className="mt-1 flex items-end gap-2">
               {expired ? (
-                <span className="text-4xl sm:text-5xl font-bold brand-gradient leading-none">已考完</span>
+                <span className="text-4xl sm:text-5xl font-bold leading-none text-content">已考完</span>
               ) : (
                 <>
                   <span className="font-mono text-6xl sm:text-7xl font-bold leading-none text-accent tabular-nums">

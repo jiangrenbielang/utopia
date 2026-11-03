@@ -4,9 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { PageShell } from '@/components/study/page-shell';
 import { SourceManagerDrawer } from '@/components/source-manager';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import TvboxConfigPanel from '@/components/tvbox-config-panel';
+import WallpaperPanel from '@/components/wallpaper-panel';
+import DesktopSettingsLink from '@/components/desktop-settings-link';
 import { Icon } from '@/components/icon';
 import { useToast } from '@/components/toast';
-import { useAuth } from '@/components/auth';
+import { useQuery } from '@tanstack/react-query';
+import { STATUS_QUERY_KEY } from '@/lib/client-api';
+import type { AuthStatusResponse } from '@/lib/types';
 import {
   buildBackup,
   clearStudyRecords,
@@ -25,7 +30,13 @@ export default function SettingsPage() {
   const config = useStudyConfig();
   const records = useStudyRecords();
   const courses = useCourses();
-  const { version } = useAuth();
+  // 版本号仍由 /api/status 提供（Web 端配置与密码门禁已移除，该接口只剩版本信息）
+  const { data: appStatus } = useQuery({
+    queryKey: STATUS_QUERY_KEY,
+    queryFn: async () => (await fetch('/api/status')).json() as Promise<AuthStatusResponse>,
+    staleTime: Infinity,
+  });
+  const version = appStatus?.version ?? null;
   const { toast } = useToast();
 
   const [examDate, setExamDate] = useState(config.examTargetDate);
@@ -212,7 +223,7 @@ export default function SettingsPage() {
               <input
                 type="radio"
                 name="import-mode"
-                className="accent-[#00b8e6]"
+                className="accent-accent"
                 checked={importMode === 'merge'}
                 onChange={() => setImportMode('merge')}
               />
@@ -222,7 +233,7 @@ export default function SettingsPage() {
               <input
                 type="radio"
                 name="import-mode"
-                className="accent-[#d9534f]"
+                className="accent-danger"
                 checked={importMode === 'overwrite'}
                 onChange={() => setImportMode('overwrite')}
               />
@@ -238,14 +249,36 @@ export default function SettingsPage() {
             资源数据源
           </h2>
           <p className="text-xs text-muted mt-2 leading-relaxed">
-            「资源库」通过 Apple CMS 点播源聚合搜索网课视频；点播源、直播源、播放偏好与配置导入导出都沿用 LibreTV
-            的设置面板。
+            「资源库」通过你配置的点播源聚合搜索网课视频。推荐直接在下方填入一份 TVBox 配置地址；
+            需要逐个增删源、调整播放偏好或导入导出配置时，再打开数据源设置面板。
           </p>
           <button className="btn-ghost btn-sm mt-4" onClick={() => setSourceOpen(true)}>
             <Icon name="gear" className="w-3.5 h-3.5" />
             打开数据源设置
           </button>
         </section>
+
+        {/* 页面背景壁纸 */}
+        <section className="card p-5">
+          <h2 className="text-sm font-medium text-content flex items-center gap-2">
+            <Icon name="image" className="w-4 h-4 text-accent" />
+            页面背景壁纸
+          </h2>
+          <p className="text-xs text-muted mt-2 leading-relaxed">
+            可以在「跟随 TVBOX 配置」和「我的图片」之间切换；导入的图片只保存在本机，不会上传。
+          </p>
+          <div className="mt-4">
+            <WallpaperPanel />
+          </div>
+        </section>
+
+        {/* TVBox 配置地址：本客户端的主数据入口 */}
+        <div className="lg:col-span-2">
+          <TvboxConfigPanel />
+        </div>
+
+        {/* 桌面客户端设置（仅桌面端渲染；菜单栏已移除后它是入口之一） */}
+        <DesktopSettingsLink />
 
         {/* 清空数据 */}
         <section className="card p-5 lg:col-span-2">
@@ -264,7 +297,7 @@ export default function SettingsPage() {
         <section className="card p-5 lg:col-span-2">
           <h2 className="text-sm font-medium text-content">关于 Utopia</h2>
           <p className="text-xs text-muted mt-2 leading-relaxed">
-            Utopia v1.0 · 基于 LibreTV v{version || '2.x'} 构建 · AGPL-3.0 License。
+            Utopia v{version || '2.x'} · 播放内核源自 LibreTV · 数据源由 TVBox 配置地址驱动 · AGPL-3.0 License。
             纯本地工具，无账号、无云同步；网课资源来自你自行配置的第三方点播源。
           </p>
           <p className="text-[11px] text-faint mt-1">当前日期：{formatDateShort(new Date())}</p>

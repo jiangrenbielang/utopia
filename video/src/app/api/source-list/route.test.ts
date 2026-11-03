@@ -1,6 +1,5 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from './route';
-import { SESSION_COOKIE, signSession } from '@/lib/auth';
 
 /**
  * 订阅接口单测：格式自动识别（LibreTV-SourceList / TVBOX）、统计透传，
@@ -46,17 +45,9 @@ async function readJson(res: Response): Promise<SubPayload> {
 }
 
 function makeRequest(subUrl = 'https://feed.example.com/subscription.json'): Request {
-  const { token } = signSession();
   const sp = new URLSearchParams({ url: subUrl });
-  return new Request(`https://local.test/api/source-list?${sp.toString()}`, {
-    headers: { cookie: `${SESSION_COOKIE}=${token}` },
-  });
+  return new Request(`https://local.test/api/source-list?${sp.toString()}`);
 }
-
-beforeAll(() => {
-  process.env.PASSWORD = 'test-password';
-  delete process.env.PROXY_SECRET;
-});
 
 beforeEach(() => {
   state.body = null;

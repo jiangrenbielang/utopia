@@ -1,9 +1,8 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST } from './route';
-import { SESSION_COOKIE, signSession } from '@/lib/auth';
 
 /**
- * 发布接口单测：登录守卫、字段白名单与条数上限。
+ * 发布接口单测：字段白名单与条数上限。
  * 这里只验证「接口不成为任意内容上传通道」，真实上传逻辑由发布器自身测试覆盖。
  */
 
@@ -22,21 +21,13 @@ vi.mock('@/lib/source-list-publish', () => ({
   }),
 }));
 
-function makeRequest(body: unknown, options?: { authenticated?: boolean }): Request {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (options?.authenticated !== false) {
-    headers.cookie = `${SESSION_COOKIE}=${signSession().token}`;
-  }
+function makeRequest(body: unknown): Request {
   return new Request('https://local.test/api/publish', {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json' },
     body: typeof body === 'string' ? body : JSON.stringify(body),
   });
 }
-
-beforeAll(() => {
-  process.env.PASSWORD = 'test-password';
-});
 
 beforeEach(() => {
   state.publishedText = null;
@@ -44,11 +35,6 @@ beforeEach(() => {
 });
 
 describe('POST /api/publish', () => {
-  it('未登录直接被守卫拦下', async () => {
-    const res = await POST(makeRequest({ sources: [] }, { authenticated: false }));
-    expect(res.status).toBe(401);
-  });
-
   it('请求体不是合法 JSON 时返回 400', async () => {
     const res = await POST(makeRequest('not json'));
     expect(res.status).toBe(400);

@@ -30,9 +30,24 @@ function systemPrefersDark(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
+/**
+ * 桌面客户端（Electron）：把解析后的主题同步到原生层。
+ * nativeTheme 决定系统标题栏 / 滚动条 / 对话框颜色，不同步会出现
+ * 「页面白色顶栏 + 系统深色标题栏」的割裂。浏览器环境静默跳过。
+ */
+function syncNativeTheme(resolved: 'light' | 'dark'): void {
+  if (typeof window === 'undefined') return;
+  try {
+    void window.utopiaDesktop?.setNativeTheme?.(resolved === 'dark');
+  } catch {
+    /* 桥不可用（浏览器/旧版客户端）时忽略 */
+  }
+}
+
 function apply(choice: ThemeChoice): 'light' | 'dark' {
   const resolved = choice === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : choice;
   document.documentElement.classList.toggle('dark', resolved === 'dark');
+  syncNativeTheme(resolved);
   return resolved;
 }
 

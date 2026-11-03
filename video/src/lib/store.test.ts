@@ -22,8 +22,6 @@ beforeEach(() => {
     subscriptions: [],
     liveSubscriptions: [],
     liveSelectedUrls: [],
-    liveFavorites: [],
-    liveRecent: [],
     yellowFilter: false,
     skipMarks: {},
   });
@@ -102,7 +100,7 @@ describe('订阅同步的 store 语义', () => {
     expect(store().customAPIs[0].key.startsWith('sub_')).toBe(true);
   });
 
-  it('直播源：新导入自动启用、停用不勾回、消失的源清理启用状态但保留收藏', () => {
+  it('直播源：新导入自动启用、停用不勾回、消失的源清理启用状态', () => {
     const url = 'https://a.example.com/list.json';
     const m1 = 'https://live.example.com/1.m3u';
     const m2 = 'https://live.example.com/2.m3u';
@@ -114,23 +112,20 @@ describe('订阅同步的 store 语义', () => {
     expect(store().liveSelectedUrls).toContain(m1);
     expect(store().liveSelectedUrls).toContain(m2);
 
-    // 用户收藏 m2、并主动停用 m2
-    useAppStore.setState({ liveFavorites: [m2] });
+    // 用户主动停用 m2
     store().toggleLiveSelected(m2);
 
     // 远端列表只剩 m2：m1 随消失清理启用状态；m2 维持用户的停用状态
     store().applySubscriptionLive(url, [{ name: 'm2', url: m2 }]);
     expect(store().liveSelectedUrls).not.toContain(m1);
     expect(store().liveSelectedUrls).not.toContain(m2);
-    expect(store().liveFavorites).toContain(m2);
   });
 
-  it('删除订阅：清点播/勾选/直播/启用状态，保留收藏的频道', () => {
+  it('删除订阅：清点播/勾选/直播/启用状态', () => {
     const url = 'https://a.example.com/list.json';
     const m1 = 'https://live.example.com/1.m3u';
     store().applySubscriptionSources(url, list(['https://x/api.php/provide/vod']));
     store().applySubscriptionLive(url, [{ name: 'm1', url: m1 }]);
-    useAppStore.setState({ liveFavorites: [m1] });
     store().addSubscription(url, 'A');
     expect(store().subscriptions).toHaveLength(1);
 
@@ -140,7 +135,6 @@ describe('订阅同步的 store 语义', () => {
     expect(store().selectedKeys).toHaveLength(0);
     expect(store().liveSubscriptions).toHaveLength(0);
     expect(store().liveSelectedUrls).toHaveLength(0);
-    expect(store().liveFavorites).toContain(m1);
   });
 
   it('同一 M3U 被两个订阅引用时共享归属，不重复导入，名称以首次导入为准', () => {
@@ -199,15 +193,14 @@ describe('订阅同步的 store 语义', () => {
       { name: '独占', url: exclusive },
     ]);
     store().applySubscriptionLive('https://b.example.com/list.json', [{ name: '共享', url: shared }]);
-    useAppStore.setState({ liveSelectedUrls: [shared, exclusive], liveFavorites: [exclusive] });
+    useAppStore.setState({ liveSelectedUrls: [shared, exclusive] });
 
     store().removeSubscription('https://a.example.com/list.json');
-    // 共享源保留（归属只剩 B），独占源随订阅移除；启用状态相应清理，收藏保留
+    // 共享源保留（归属只剩 B），独占源随订阅移除；启用状态相应清理
     expect(store().liveSubscriptions).toHaveLength(1);
     expect(store().liveSubscriptions[0].url).toBe(shared);
     expect(store().liveSubscriptions[0].fromSubscriptions).toEqual(['https://b.example.com/list.json']);
     expect(store().liveSelectedUrls).toEqual([shared]);
-    expect(store().liveFavorites).toContain(exclusive);
   });
 });
 

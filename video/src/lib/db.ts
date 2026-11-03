@@ -1,7 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { SourceConfig } from './types';
-// 仅类型引入：store.ts 运行时会引用本模块，反向只取类型不会形成运行时循环
-import type { LiveProbeEntry } from './store';
 import { PERSIST_KEY, flushPendingPersist } from './persist-storage';
 
 /**
@@ -70,13 +68,34 @@ export interface DownloadTaskEntry {
   updatedAt: number;
 }
 
+/**
+ * 本地壁纸（用户导入的图片）。
+ *
+ * 为什么放 IndexedDB 而不是 localStorage：一张手机壁纸动辄 2–5MB，
+ * localStorage 总配额只有约 5MB，且随 zustand persist 整体序列化会拖慢每次写入。
+ */
+export interface WallpaperAsset {
+  id: string;
+  /** 原始文件名，仅用于界面展示 */
+  name: string;
+  /** MIME 类型（image/png 等），用于生成 object URL 与校验 */
+  type: string;
+  /** 字节数，用于界面展示与配额提示 */
+  size: number;
+  /** 原始文件字节；渲染时转成 object URL */
+  blob: Blob;
+  createdAt: number;
+}
+
 export const db = new Dexie('libretv') as Dexie & {
   history: EntityTable<HistoryEntry, 'id'>;
   progress: EntityTable<ProgressEntry, 'key'>;
   searchHistory: EntityTable<SearchHistoryEntry, 'text'>;
-  liveProbe: EntityTable<LiveProbeEntry & { url: string }, 'url'>;
+  /** 直播测活缓存表已随直播页下线停用；schema 保留在 v2，Dexie 升级路径不变 */
+  liveProbe: EntityTable<{ url: string }, 'url'>;
   segmentMeta: EntityTable<SegmentMetaEntry, 'key'>;
   downloads: EntityTable<DownloadTaskEntry, 'id'>;
+  wallpapers: EntityTable<WallpaperAsset, 'id'>;
 };
 
 db.version(1).stores({
@@ -94,6 +113,11 @@ db.version(2).stores({
 db.version(3).stores({
   segmentMeta: 'key, episodeKey, lastAccess',
   downloads: 'id, createdAt',
+});
+
+// v4：用户导入的本地壁纸（原始字节存 Blob，不进 localStorage）
+db.version(4).stores({
+  wallpapers: 'id, createdAt',
 });
 
 export const MAX_HISTORY = 100;
@@ -186,24 +210,6 @@ export async function clearSearchHistory(): Promise<void> {
 export async function restoreSearchHistory(entries: SearchHistoryEntry[]): Promise<void> {
   if (entries.length === 0) return;
   await db.searchHistory.bulkPut(entries);
-}
-
-// —— 直播测活缓存（TTL 过滤由调用方负责，本层只管存取） ——
-
-export async function loadLiveProbeResults(): Promise<Record<string, LiveProbeEntry>> {
-  const rows = await db.liveProbe.toArray();
-  const out: Record<string, LiveProbeEntry> = {};
-  for (const r of rows) out[r.url] = r;
-  return out;
-}
-
-export async function saveLiveProbeResults(entries: Record<string, LiveProbeEntry>): Promise<void> {
-  const rows = Object.entries(entries).map(([url, e]) => ({ ...e, url }));
-  if (rows.length > 0) await db.liveProbe.bulkPut(rows);
-}
-
-export async function clearLiveProbeResultsDb(): Promise<void> {
-  await db.liveProbe.clear();
 }
 
 // —— 配置导入导出（兼容旧版 LibreTV-Settings JSON 结构的导出格式） ——

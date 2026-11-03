@@ -1,3 +1,11 @@
+import type { TvboxConfigExtras } from './tvbox-config';
+
+/**
+ * 类型层的 TVBOX 依赖走 `import type`：编译后该语句整体消失，
+ * 因此 types.ts 不产生对 tvbox-config 的运行时依赖，不存在循环加载
+ * （tvbox-config 与 tvbox-parser 在运行时都只依赖各自的纯逻辑模块）。
+ */
+
 // 采集站（Apple CMS 资源站）描述
 export interface SourceConfig {
   /** 唯一标识，如 "custom_0"；内置源直接用短名 */
@@ -124,22 +132,9 @@ export interface BangumiCalendarResponse {
   days: BangumiCalendarDay[];
 }
 
+/** /api/status 响应：仅保留构建时注入的应用版本 */
 export interface AuthStatusResponse {
-  /** 服务器是否配置了 PASSWORD */
-  passwordRequired: boolean;
-  /** 当前会话是否已验证 */
-  verified: boolean;
   version: string;
-  /** 部署者通过 DEFAULT_SOURCES 环境变量预置的采集站（未配置时为空数组） */
-  defaultSources: SourceConfig[];
-  /** 部署者通过 DEFAULT_LIVE_SOURCES 环境变量预置的直播源（未配置时为空数组） */
-  defaultLiveSources: LiveSourceConfig[];
-  /** 部署者通过 DEFAULT_SUBSCRIPTIONS 环境变量预置的 SourceList 订阅链接（未配置时为空数组） */
-  defaultSubscriptions: { url: string; name?: string; refreshDays?: number }[];
-  /** 部署者通过 DEFAULT_RECOMMEND_SOURCE 环境变量指定的首页推荐数据源默认值（未配置时为 null） */
-  defaultRecommendSource: 'douban' | 'bangumi' | 'hot-list' | null;
-  /** 部署者通过 DEFAULT_IMAGE_MODE 环境变量指定的封面图加载方式默认值（未配置时为 null） */
-  defaultImageMode: 'direct' | 'proxy' | null;
 }
 
 // —— 直播 / IPTV ——
@@ -174,24 +169,6 @@ export interface LivePlaylistResponse {
   groups: string[];
 }
 
-/** 单条节目单条目（XMLTV programme） */
-export interface EpgProgram {
-  channelId: string;
-  /** epoch ms */
-  start: number;
-  /** epoch ms */
-  stop: number;
-  title: string;
-  desc?: string;
-}
-
-export interface LiveEpgResponse {
-  channelId: string;
-  current?: EpgProgram;
-  next?: EpgProgram;
-  programs: EpgProgram[];
-}
-
 // —— 数据源订阅 ——
 
 /** 订阅条目未被导入（跳过）的原因分类 */
@@ -202,7 +179,14 @@ export type SubscriptionSkipReason =
   | 'xml'
   /** 站点自身标记为不可搜索（本站只有搜索入口，导入后无法使用） */
   | 'unsearchable'
-  /** 直播源不是 M3U 播放列表（如 txt 频道列表、单仓 JSON） */
+  /**
+   * 直播源是**单仓 JSON**（`{group, channels}` 或 `type:1` / `.json` 地址），
+   * 需要 TVBOX 的聚合逻辑，本站不解析。
+   *
+   * 注意：**不再代表「非 M3U」**。`.txt` 与无扩展名的播放列表一律放行，
+   * 真实格式由服务端按内容嗅探（实测 `jinenge/tvbox` 的 `./lib/interface.txt`
+   * 内容就是标准 M3U），按扩展名拒绝会误杀可用源。
+   */
   | 'nonM3uLive'
   /** 接口目录条目自身标记 enabled: false（发布者主动停用，不是异常） */
   | 'disabled'
@@ -237,4 +221,10 @@ export interface SourceListPayload {
   liveSources: Omit<LiveSourceConfig, 'key'>[];
   /** 解析统计（格式、跳过与截断），老数据可能缺失 */
   stats?: SubscriptionParseStats;
+  /**
+   * TVBOX 配置的附加信息（解析线路、平台白名单、壁纸、站点索引、形态统计）。
+   * 仅当订阅内容被识别为 TVBOX 配置时存在；LibreTV 源列表与接口目录不携带该字段，
+   * 老消费方读不到它会照旧工作。
+   */
+  tvbox?: TvboxConfigExtras;
 }

@@ -90,6 +90,61 @@ export function allowLivePrivate(): boolean {
 }
 
 /**
+ * 播放（媒体 / 图片代理）是否放行内网地址。
+ *
+ * 典型场景：**AList / OpenList 这类自建网盘服务通常跑在局域网或本机**
+ * （`http://192.168.x.x:5244` 或 `http://127.0.0.1:5244`）。默认拒绝内网时，
+ * 用户把 AList 直链填进课程也播不出来——M3U8 与其分片会在代理处被 SSRF 校验拦下。
+ * 因此提供一个显式开关；**默认关闭**，公网部署者不应打开。
+ *
+ * 桌面客户端由主进程在环回地址上承载数据层，默认打开这个开关（见 desktop/main.js）。
+ */
+export function allowPrivateUpstream(): boolean {
+  return process.env.ALLOW_PRIVATE_UPSTREAM === '1';
+}
+
+/** 任意一个「放行内网」开关被打开即视为允许（供逐跳重定向复检共用一把尺子） */
+export function allowPrivateAny(): boolean {
+  return allowLivePrivate() || allowPrivateUpstream();
+}
+
+/**
+ * 放行内网时的通用校验：只要协议是 http(s) 就通过。
+ * 仅供「调用方已经确认要放行内网」的场景使用（如逐跳重定向复检）。
+ */
+export async function checkPrivateAllowed(urlString: string): Promise<UpstreamVerdict> {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { ok: false, reason: '上游地址仅支持 http/https 协议' };
+    }
+  } catch {
+    return { ok: false, reason: '无效的上游地址' };
+  }
+  return { ok: true };
+}
+
+/**
+ * 通用代理（媒体 / 图片）的准入校验：协议必须 http(s)，默认仍拒绝内网，
+ * 部署者可用 `ALLOW_PRIVATE_UPSTREAM=1` 显式放行（自建 AList / OpenList）。
+ *
+ * 与点播侧 checkUpstreamAllowed 的区别只在这一处开关——与 checkLiveUrlAllowed
+ * 对直播的场景完全对称，两把尺子各自只放行自己那一类。
+ */
+export async function checkProxyUrlAllowed(urlString: string): Promise<UpstreamVerdict> {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { ok: false, reason: '代理地址仅支持 http/https 协议' };
+    }
+  } catch {
+    return { ok: false, reason: '无效的代理地址' };
+  }
+  if (allowPrivateUpstream()) return { ok: true };
+  return checkUpstreamAllowed(urlString);
+}
+
+/**
  * 直播地址专用校验：协议必须 http(s)，默认仍拒绝内网，但部署者可用
  * LIVE_ALLOW_PRIVATE=1 显式放行（自建 IPTV 常位于内网）。
  *

@@ -15,22 +15,26 @@ import {
  * 仅导入「直连类」条目（与本站现有能力对齐）：
  * - 点播：type=1 的 JSON 接口（即 Apple CMS 采集站）；部分共享配置省略 type 或写成 0，
  *   但地址命中 Apple CMS 特征时一并宽容导入；
- * - 直播：type=0（或省略）的 M3U 播放列表，可带 EPG 节目单地址。
+ * - 直播：普通播放列表（type=0 或省略），可带 EPG 节目单地址。**不按扩展名筛**：
+ *   实测 `.txt` 内容可能就是标准 M3U，真实格式由 `lib/tvbox-live.ts` 拉取后按内容嗅探。
  *
  * Spider 类（csp_xxx / jar / js / py）需要 TVBOX 引擎才能在 Node 侧运行，XML 接口、
- * 单仓 JSON 与 txt 频道列表本站同样不支持：一律跳过并计入统计，不阻断其余条目导入。
+ * 单仓 JSON 直播源（type=1 或带 channels）本站同样不支持：一律跳过并计入统计，
+ * 不阻断其余条目导入。
  *
  * 本模块只做字段裁剪、去重与上限控制，不涉及网络与 SSRF（由调用方负责校验）。
  */
 
-/** TVBOX 站点类型：0=XML 接口，1=JSON 接口，3=Spider，4=JSON 外链 */
+/** TVBOX 站点类型：0=XML 接口，1=JSON 接口，2=JSON 采集变体，3=Spider，4=JSON 外链 */
 const SITE_TYPE_XML = 0;
 const SITE_TYPE_JSON = 1;
+/** JSON 采集变体：FongMi 的 `Result.fromType()` 与 type=1 走同一分支，一样可直接导入 */
+const SITE_TYPE_JSON_VARIANT = 2;
 const SITE_TYPE_SPIDER = 3;
 const SITE_TYPE_API = 4;
 
-/** TVBOX 直播源类型：0=普通播放列表（m3u/txt），1=单仓 JSON */
-const LIVE_TYPE_PLAYLIST = 0;
+/** TVBOX 直播源类型：0=普通播放列表（m3u/txt，内容嗅探），1=单仓 JSON */
+const LIVE_TYPE_SINGLE_FILE = 1;
 
 /** Spider 特征：csp_ 前缀，或 jar / js / py 资源（含查询串） */
 const SPIDER_PATTERN = /^csp_|\.(?:jar|js|py)(?:[?#].*)?$/i;
@@ -41,10 +45,8 @@ const LOCAL_ASSET_PATTERN = /^\.{0,2}\//;
  * 需为 api.php/provide/vod 接口，且排除 XML 通道（/at/xml）——后者本站解析不了。
  */
 const CMS_API_PATTERN = /\/api\.php\/provide\/vod(?![^?#]*\/at\/xml)(?:[/?#]|$)/i;
-/** M3U 播放列表特征 */
-const M3U_PATTERN = /\.m3u8?(?:[?#].*)?$/i;
-/** 纯文本频道列表特征（TVBOX 的 txt 直播源，本站无法解析） */
-const TXT_PATTERN = /\.txt(?:[?#].*)?$/i;
+/** 单仓 JSON 直播源特征：实测该后缀的播放列表就是 `{group, channels}` 形态 */
+const JSON_PATTERN = /\.json(?:[?#].*)?$/i;
 
 /** 跳过原因示例名最多保留条数（提示文案不宜过长） */
 const SKIPPED_SAMPLE_LIMIT = 3;
@@ -53,7 +55,7 @@ const SKIP_REASON_LABELS: Record<SubscriptionSkipReason, string> = {
   spider: 'Spider 引擎',
   xml: 'XML 接口',
   unsearchable: '不支持搜索',
-  nonM3uLive: '非 M3U 直播',
+  nonM3uLive: '单仓 JSON 直播',
   disabled: '已停用',
   invalidUrl: '地址不可用',
 };
@@ -237,8 +239,8 @@ function isMixedCatalogPayload(json: unknown): boolean {
  * 否则「一条带 baseUrl」会让其余 url 条目被静默丢弃，回退到 LibreTV 解析也救不了
  * （那边读 url，丢的是 baseUrl 那批），两种都是无声的数据损失。
  */
-export function parseSubscriptionPayload(json: unknown): SourceListPayload {
-  if (isTvboxPayload(json)) return parseTvboxPayload(json);
+export function parseSubscriptionPayload(json: unknown, configUrl?: string): SourceListPayload {
+  if (isTvboxPayload(json)) return parseTvboxPayload(json, configUrl);
   if (isSourceCatalogPayload(json)) return parseSourceCatalogPayload(json);
   if (isMixedCatalogPayload(json)) {
     throw new Error(
@@ -311,14 +313,14 @@ export function parseSourceCatalogPayload(json: unknown): SourceListPayload {
 }
 
 /** 解析 TVBOX 配置：sites / lives → 本站点播源与直播源，附带跳过与截断统计 */
-export function parseTvboxPayload(json: unknown): SourceListPayload {
+export function parseTvboxPayload(json: unknown, configUrl?: string): SourceListPayload {
   const record = (json ?? {}) as Record<string, unknown>;
   const rawSites = Array.isArray(record.sites) ? record.sites : [];
   const rawLives = Array.isArray(record.lives) ? record.lives : [];
   const skipped: SkipCounter = { count: 0, byReason: {}, samples: [] };
 
   const vod = collectVodSources(rawSites, skipped);
-  const live = collectLiveSources(rawLives, skipped);
+  const live = collectLiveSources(rawLives, skipped, configUrl);
 
   if (vod.sources.length === 0 && live.liveSources.length === 0) {
     throw new Error(
@@ -412,9 +414,10 @@ function collectVodSources(rawSites: unknown[], skipped: SkipCounter) {
       continue;
     }
 
-    // 可导入判定：显式 JSON 接口，或类型缺失/写成 XML、外链但地址命中 Apple CMS 特征
+    // 可导入判定：显式 JSON 接口（含 type=2 变体），或类型缺失/写成 XML、外链但地址命中 Apple CMS 特征
     const importable =
       type === SITE_TYPE_JSON ||
+      type === SITE_TYPE_JSON_VARIANT ||
       ((type === undefined || type === SITE_TYPE_XML || type === SITE_TYPE_API) && CMS_API_PATTERN.test(api));
     if (!importable) {
       markSkipped(skipped, type === SITE_TYPE_API ? 'spider' : 'xml', name);
@@ -438,8 +441,26 @@ function collectVodSources(rawSites: unknown[], skipped: SkipCounter) {
   return { sources, truncated };
 }
 
-/** 收集直播源：只接受 M3U 播放列表 */
-function collectLiveSources(rawLives: unknown[], skipped: SkipCounter) {
+/**
+ * 相对地址按**配置地址**解析。
+ *
+ * TVBOX 配置大量使用相对路径（`./lib/iptv.m3u`、`./lib/interface.txt`），相对的是
+ * **配置 JSON 所在目录**，不是本站页面。不解析就会把它们判成「地址不可用」直接跳过，
+ * 而这类直播源往往是一份全 Spider 配置里唯一能用的内容（实测 `jinenge/tvbox` 就是如此）。
+ * 绝对地址与 `proxy://` 这类伪协议原样返回。
+ */
+function resolveAgainstConfig(raw: string, configUrl?: string): string {
+  if (!configUrl) return raw;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return raw;
+  try {
+    return new URL(raw, configUrl).toString();
+  } catch {
+    return raw;
+  }
+}
+
+/** 收集直播源：接受一切非单仓 JSON 的播放列表地址（真实格式由服务端按内容嗅探） */
+function collectLiveSources(rawLives: unknown[], skipped: SkipCounter, configUrl?: string) {
   const seen = new Set<string>();
   const liveSources: SourceListPayload['liveSources'] = [];
   let truncated = 0;
@@ -448,14 +469,29 @@ function collectLiveSources(rawLives: unknown[], skipped: SkipCounter) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
     const live = raw as Record<string, unknown>;
     const name = optionalString(live.name);
-    const url = normalizeUrl(live.url, false);
+    const channels = Array.isArray(live.channels) ? live.channels : undefined;
+    const rawUrl = optionalString(live.url);
+    const url = rawUrl ? normalizeUrl(resolveAgainstConfig(rawUrl, configUrl), false) : undefined;
     if (!url) {
-      markSkipped(skipped, 'invalidUrl', name);
+      // 没有地址的条目本站无法使用：带 channels 的是单仓 JSON（形态不支持），
+      // 其余才算地址不可用——两类原因在提示文案里必须分得清
+      markSkipped(skipped, channels && channels.length > 0 ? 'nonM3uLive' : 'invalidUrl', name);
       continue;
     }
     const type = toNumber(live.type);
-    // 单仓 JSON 直播订阅本站不支持；txt 频道列表无法被 M3U 解析器识别
-    if ((type !== undefined && type !== LIVE_TYPE_PLAYLIST) || (!M3U_PATTERN.test(url) && TXT_PATTERN.test(url))) {
+    /**
+     * 只跳过本站确定解析不了的**单仓 JSON**直播源，三种判据取其一：
+     * 显式 `type:1`、带 `channels` 结构（type 缺失时靠结构识别）、`.json` 地址
+     * （实测该后缀就是 `{group, channels}` 形态）。
+     *
+     * 其余一律放行——**包括 `.txt` 与无扩展名地址**：播放列表格式由服务端拉取后
+     * 按内容嗅探（见 lib/tvbox-live.ts），扩展名不可信。
+     * 例如 `jinenge/tvbox` 的 `./lib/interface.txt` 内容其实是标准 M3U，
+     * 按扩展名拒绝会把一个完全可用的直播源误判为不支持。
+     */
+    const singleFileJson =
+      type === LIVE_TYPE_SINGLE_FILE || (channels?.length ?? 0) > 0 || JSON_PATTERN.test(url);
+    if (singleFileJson) {
       markSkipped(skipped, 'nonM3uLive', name);
       continue;
     }
@@ -465,7 +501,9 @@ function collectLiveSources(rawLives: unknown[], skipped: SkipCounter) {
       continue;
     }
     seen.add(url);
-    liveSources.push({ name: name || hostnameOf(url), url, epg: normalizeUrl(live.epg, false) });
+    const rawEpg = optionalString(live.epg);
+    const epg = rawEpg ? normalizeUrl(resolveAgainstConfig(rawEpg, configUrl), false) : undefined;
+    liveSources.push({ name: name || hostnameOf(url), url, epg });
   }
 
   return { liveSources, truncated };

@@ -5,8 +5,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { QualityEntry, SourceConfig, LiveSourceConfig, SourceSearchOutcome } from './types';
 import { migrateSkipMarks, type SkipMark, type SkipSegment } from './skip-marks';
 import { isQualityEntryFresh, mergeQualityEntries, qualityKey } from './quality';
-import { clearLiveProbeResultsDb, loadLiveProbeResults, saveLiveProbeResults } from './db';
 import { PERSIST_KEY, createThrottledStorage } from './persist-storage';
+import type { TvboxConfigExtras } from './tvbox-config';
 
 /**
  * 全局设置（zustand + localStorage 持久化）。
@@ -21,8 +21,6 @@ export interface AppSettings {
   doubanEnabled: boolean;
   /** 首页推荐数据源：豆瓣热门 / Bangumi 每日放送（免 key）/ 影视热榜（60s API） */
   recommendSource: 'douban' | 'bangumi' | 'hot-list';
-  /** 用户是否在设置中主动选择过推荐数据源；为 false 时部署者的 DEFAULT_RECOMMEND_SOURCE 默认值可生效 */
-  recommendSourceTouched: boolean;
   autoplayNext: boolean;
   /** 跳过片段：按归一化剧名持久化，详见 lib/skip-marks.ts */
   skipMarks: Record<string, SkipMark>;
@@ -32,9 +30,24 @@ export interface AppSettings {
    */
   autoSkipSegments: boolean;
   imageProxyMode: 'direct' | 'proxy' | 'custom';
-  /** 用户是否在设置中主动选择过封面图加载方式；为 false 时部署者的 DEFAULT_IMAGE_MODE 默认值可生效 */
-  imageProxyModeTouched: boolean;
   customImageProxy: string;
+  /**
+   * 页面背景壁纸：
+   * - `off`   ：不显示（只有页面底色）
+   * - `tvbox` ：跟随当前生效的 TVBOX 配置里的 `wallpaper`（默认，行为与升级前一致）
+   * - `local` ：使用用户导入的本地图片（存 IndexedDB，见 lib/wallpapers.ts）
+   */
+  wallpaperMode: 'off' | 'tvbox' | 'local';
+  /** 本地壁纸在 IndexedDB 里的 id（`wallpaperMode === 'local'` 时生效） */
+  wallpaperLocalId?: string;
+  /** 背景压暗程度 0–95（越大越暗，文字越易读） */
+  wallpaperDim: number;
+  /**
+   * 壁纸填充方式：
+   * - `cover`   ：铺满整个页面（按需裁切），默认
+   * - `contain` ：完整显示整张图（可能留出页面底色）
+   */
+  wallpaperFit: 'cover' | 'contain';
 }
 
 /** 一次订阅同步导入的数量（点播 / 直播），用于列表内展示同步结果 */
@@ -67,7 +80,6 @@ export interface SourceSubscription {
   /**
    * 自动刷新周期（天）。undefined = 只手动同步（默认，与历史行为一致）；
    * 1-365 表示打开站点时按该周期静默刷新（详见 lib/subscription-sync.ts）。
-   * 预置订阅（DEFAULT_SUBSCRIPTIONS）也读这里：用户显式设过就覆盖部署者的默认值。
    */
   refreshDays?: number;
   /** 连续同步失败次数：达到阈值后暂停自动刷新，成功一次清零 */
@@ -103,38 +115,10 @@ export interface LiveSubscription {
   fromSubscriptions: string[];
 }
 
-/** 直播最近观看条目（上限 20 条，按 url 去重） */
-export interface LiveRecentEntry {
-  url: string;
-  name: string;
-  logo?: string;
-  group?: string;
-  tvgId?: string;
-  /** 来源订阅地址（用于回查 EPG） */
-  epg?: string;
-  /** 所属直播源地址（M3U 订阅 URL），删除订阅时按此清理；旧数据缺失则自然淘汰 */
-  sourceUrl?: string;
-  timestamp: number;
-}
 
-/** 测活结果有效期：6 小时内直接复用，过期后重新探测 */
-export const LIVE_PROBE_TTL_MS = 6 * 60 * 60 * 1000;
 
-/** 直播测活结果缓存条目（按流 URL 唯一标识） */
-export interface LiveProbeEntry {
-  ok: boolean;
-  ms?: number;
-  level?: 'segment' | 'manifest' | 'head';
-  error?: string;
-  /** 流编码（master playlist 的 CODECS 属性），用于提示 H.265 等不可解码情况 */
-  codec?: string;
-  /** 因超时失败（源可能只是慢），前端以琥珀色区分展示 */
-  timedOut?: boolean;
-  /** 分片吞吐估算（kbps）：低于阈值的源前端标记为「源限速」琥珀色 */
-  kbps?: number;
-  /** 测活时间戳（epoch ms），配合 TTL 判断有效性 */
-  timestamp: number;
-}
+
+
 
 /** 订阅导入的源 key 前缀：sub_<hash36(url)>，实际 key 为 `${prefix}_${i}`，同步时按前缀整体替换 */
 export function subKeyPrefix(url: string): string {
@@ -197,7 +181,7 @@ interface AppState extends AppSettings {
   /** 已向用户展示过并自动勾选过的预置源 key（持久化：用户取消勾选后不再反复勾上） */
   envKeysSeen: string[];
   subscriptions: SourceSubscription[];
-  /** —— 直播模块 —— */
+  /** —— 直播模块（订阅管理；播放页已下线，仅保留源列表的增删与订阅同步） —— */
   /** 部署者通过 DEFAULT_LIVE_SOURCES 预置的直播源（服务端下发，不持久化） */
   liveEnvSources: LiveSourceConfig[];
   /** 已出现过的预置直播源 key（持久化：用于「首次自动可见」去重） */
@@ -206,18 +190,20 @@ interface AppState extends AppSettings {
   liveSubscriptions: LiveSubscription[];
   /** 已启用的直播源（按订阅 URL 唯一标识，首次出现自动勾选） */
   liveSelectedUrls: string[];
-  /** 收藏频道（按流 URL 唯一标识） */
-  liveFavorites: string[];
-  /** 最近观看频道（上限 20） */
-  liveRecent: LiveRecentEntry[];
-  /** 测活结果缓存（6 小时有效，跨会话持久化） */
-  liveProbeResults: Record<string, LiveProbeEntry>;
   /** 点播源健康度（随搜索滚动更新，跨会话持久化） */
   sourceHealth: Record<string, SourceHealthEntry>;
   /** 画质缓存（按 `sourceKey:vodId`）：播放实测与搜索时懒探测共用一份 */
   qualityMap: Record<string, QualityEntry>;
   /** 已出现过的 env 预置订阅 URL（持久化：用户删除后不再被自动加回） */
   envSubsSeen: string[];
+  /**
+   * TVBOX 配置附加信息（key = 配置地址）。
+   * 只存「源列表之外」的部分：解析线路、平台白名单、壁纸、站点形态统计；
+   * 可导入的源本身由订阅机制写进 customAPIs / liveSubscriptions，两处不重复。
+   */
+  tvboxByUrl: Record<string, TvboxConfigExtras>;
+  /** 当前生效的 TVBOX 配置地址（决定壁纸等展示项取哪一份配置）；未选定则为空 */
+  tvboxActiveUrl?: string;
   addCustomApi: (api: Omit<SourceConfig, 'key'> & { key?: string }) => void;
   updateCustomApi: (key: string, patch: Partial<SourceConfig>) => void;
   /** 删除点播源；返回被删快照供撤销，key 不存在时返回 null */
@@ -256,15 +242,6 @@ interface AppState extends AppSettings {
   toggleLiveSelected: (url: string) => void;
   /** 批量启停直播源：一次 set 完成，避免逐条 toggle 的 O(n) 次持久化 */
   toggleLiveSelectedMany: (urls: string[]) => void;
-  toggleLiveFavorite: (channelUrl: string) => void;
-  addLiveRecent: (entry: Omit<LiveRecentEntry, 'timestamp'>) => void;
-  /** 删除单条最近观看（按流 URL） */
-  removeLiveRecent: (channelUrl: string) => void;
-  /** 清空最近观看 */
-  clearLiveRecent: () => void;
-  /** 合并写入测活结果，并顺带清理过期条目 */
-  setLiveProbeResults: (entries: Record<string, LiveProbeEntry>) => void;
-  clearLiveProbeResults: () => void;
   /**
    * 记录一次搜索的逐源健康度；连续失败/超时达到阈值即暂停该源参与搜索。
    * 停用时长按阶梯逐级加重（30 分钟 → 24 小时 → 长期停用），且每成功一次降一级：
@@ -282,6 +259,12 @@ interface AppState extends AppSettings {
    * 播放时的 videoHeight 才是真实分辨率，实测一旦拿到就覆盖探测结果。
    */
   setQuality: (entries: Record<string, QualityEntry>) => void;
+  /** 写入/更新某份 TVBOX 配置的附加信息（同一地址再次同步即覆盖为最新） */
+  setTvboxExtras: (url: string, extras: TvboxConfigExtras) => void;
+  /** 指定当前生效的 TVBOX 配置；传 undefined 表示取消选定（壁纸等展示项随之消失） */
+  setTvboxActiveUrl: (url: string | undefined) => void;
+  /** 删除某份配置的附加信息；若它正生效，同时清空 tvboxActiveUrl */
+  removeTvboxExtras: (url: string) => void;
   /** 写入/更新一部剧的跳过片段（整体替换 segments，空数组表示清除） */
   setSkipMark: (key: string, segments: SkipSegment[]) => void;
   /** 本剧跳过总开关：关闭后保留标记但不生效 */
@@ -322,28 +305,29 @@ export const useAppStore = create<AppState>()(
       liveEnvKeysSeen: [],
       liveSubscriptions: [],
       liveSelectedUrls: [],
-      liveFavorites: [],
-      liveRecent: [],
-      liveProbeResults: {},
       sourceHealth: {},
       qualityMap: {},
       envSubsSeen: [],
+      tvboxByUrl: {},
       selectedKeys: [],
       yellowFilter: true,
       adFilter: true,
       doubanEnabled: true,
       recommendSource: 'hot-list',
-      recommendSourceTouched: false,
       autoplayNext: true,
       skipMarks: {},
       // 自动跳过默认开启，但只有用户真正标记过片段才生效
       autoSkipSegments: true,
       // 直连优先：豆瓣封面有公共镜像 + 内置代理两级兜底（见 buildImageCandidates），
       // 默认省服务器流量；老用户保持已持久化的选择不受影响。
-      // 部署者可用 DEFAULT_IMAGE_MODE=proxy 下发内置代理优先（最稳定，吃服务器流量）
       imageProxyMode: 'direct',
-      imageProxyModeTouched: false,
       customImageProxy: '',
+      // 壁纸默认跟随 TVBOX 配置（升级前就是「有配置才显示」），本地图片默认没有
+      wallpaperMode: 'tvbox',
+      wallpaperLocalId: undefined,
+      wallpaperDim: 78,
+      // 默认铺满：多数人期望「整屏都是壁纸」；想完整看整张图可在设置里切成「完整」
+      wallpaperFit: 'cover',
 
       addCustomApi: (api) => {
         const list = get().customAPIs;
@@ -393,7 +377,7 @@ export const useAppStore = create<AppState>()(
           return;
         }
         // 成人内容过滤开启时不允许勾选成人源
-        const src = [...get().customAPIs, ...get().envSources].find((a) => a.key === key);
+        const src = get().customAPIs.find((a) => a.key === key);
         if (src?.isAdult && get().yellowFilter) return;
         set({ selectedKeys: [...cur, key] });
       },
@@ -432,6 +416,11 @@ export const useAppStore = create<AppState>()(
             return { entry: s, orphan: rest.length === 0, rest };
           });
         const orphanUrls = new Set(removedLive.filter((r) => r.orphan).map((r) => r.entry.url));
+        // TVBOX 附加信息与订阅一一对应（key 就是配置地址）：订阅没了，它对应的配置视图
+        // 也不该留着——否则壁纸/解析线路会继续生效于一个已经被删掉的订阅。
+        const tvboxByUrl = { ...get().tvboxByUrl };
+        delete tvboxByUrl[url];
+        const tvboxActiveUrl = get().tvboxActiveUrl === url ? undefined : get().tvboxActiveUrl;
         set({
           subscriptions: get().subscriptions.filter((s) => s.url !== url),
           customAPIs: get().customAPIs.filter((a) => !keyBelongsToSubscription(a.key, prefix)),
@@ -440,8 +429,8 @@ export const useAppStore = create<AppState>()(
             .filter((r) => !r.orphan)
             .map((r) => ({ ...r.entry, fromSubscriptions: r.rest })),
           liveSelectedUrls: get().liveSelectedUrls.filter((u) => !orphanUrls.has(u)),
-          // 收藏的频道是用户主动留下的，删除订阅时保留；其余残留状态一并清理
-          liveRecent: get().liveRecent.filter((r) => !r.sourceUrl || !orphanUrls.has(r.sourceUrl)),
+          tvboxByUrl,
+          tvboxActiveUrl,
         });
       },
 
@@ -575,7 +564,6 @@ export const useAppStore = create<AppState>()(
               ...freshUrls,
             ]),
           ],
-          liveRecent: get().liveRecent.filter((r) => !r.sourceUrl || !orphanUrls.has(r.sourceUrl)),
         });
         // 返回本订阅实际持有的引用数（与订阅条目的「直播 N」计数口径一致）
         return [...nextByUrl.values()].filter((s) => s.fromSubscriptions.includes(subUrl)).length;
@@ -663,45 +651,6 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      toggleLiveFavorite: (channelUrl) => {
-        const cur = get().liveFavorites;
-        set({
-          liveFavorites: cur.includes(channelUrl)
-            ? cur.filter((u) => u !== channelUrl)
-            : [...cur, channelUrl],
-        });
-      },
-
-      addLiveRecent: (entry) => {
-        const rest = get().liveRecent.filter((r) => r.url !== entry.url);
-        set({ liveRecent: [{ ...entry, timestamp: Date.now() }, ...rest].slice(0, 20) });
-      },
-
-      removeLiveRecent: (channelUrl) => {
-        set({ liveRecent: get().liveRecent.filter((r) => r.url !== channelUrl) });
-      },
-
-      clearLiveRecent: () => set({ liveRecent: [] }),
-
-      setLiveProbeResults: (entries) => {
-        const now = Date.now();
-        // 合并新结果并顺带清理过期条目；内存态是唯一读取源，IndexedDB 仅作持久化
-        const next: Record<string, LiveProbeEntry> = {};
-        for (const [url, e] of Object.entries(get().liveProbeResults)) {
-          if (now - e.timestamp < LIVE_PROBE_TTL_MS) next[url] = e;
-        }
-        for (const [url, e] of Object.entries(entries)) next[url] = e;
-        set({ liveProbeResults: next });
-        // 只落库本批新增（按键覆盖），过期行由 hydrateLiveProbeResults 启动时清理；
-        // IndexedDB 不可用（隐私模式等）时静默放弃持久化，不影响本会话使用
-        saveLiveProbeResults(entries).catch(() => {});
-      },
-
-      clearLiveProbeResults: () => {
-        set({ liveProbeResults: {} });
-        clearLiveProbeResultsDb().catch(() => {});
-      },
-
       recordSourceHealth: (outcomes) => {
         if (outcomes.length === 0) return [];
         const now = Date.now();
@@ -763,15 +712,31 @@ export const useAppStore = create<AppState>()(
         set({ sourceHealth: next });
       },
 
-      markEnvSubsSeen: (urls) => {
-        const seen = new Set(get().envSubsSeen);
-        for (const u of urls) seen.add(u);
-        set({ envSubsSeen: [...seen] });
-      },
-
       setQuality: (entries) => {
         // 合并与淘汰规则见 mergeQualityEntries（纯函数，单独覆盖了优先级与 TTL 的单测）
         set({ qualityMap: mergeQualityEntries(get().qualityMap, entries) });
+      },
+
+      setTvboxExtras: (url, extras) => {
+        if (!url) return;
+        set({ tvboxByUrl: { ...get().tvboxByUrl, [url]: extras } });
+      },
+
+      setTvboxActiveUrl: (url) => {
+        if (get().tvboxActiveUrl === url) return;
+        set({ tvboxActiveUrl: url });
+      },
+
+      removeTvboxExtras: (url) => {
+        const active = get().tvboxActiveUrl === url;
+        const rest = { ...get().tvboxByUrl };
+        if (!(url in rest)) {
+          // 条目本就不存在：仍要保证「生效指向已删配置」的残留被清掉
+          if (active) set({ tvboxActiveUrl: undefined });
+          return;
+        }
+        delete rest[url];
+        set({ tvboxByUrl: rest, tvboxActiveUrl: active ? undefined : get().tvboxActiveUrl });
       },
 
       setSkipMark: (key, segments) => {
@@ -813,31 +778,27 @@ export const useAppStore = create<AppState>()(
 
       clearAllSkipMarks: () => set({ skipMarks: {} }),
 
+      markEnvSubsSeen: (urls) => {
+        const seen = new Set(get().envSubsSeen);
+        for (const u of urls) seen.add(u);
+        set({ envSubsSeen: [...seen] });
+      },
+
       updateSettings: (patch) => {
-        // 用户主动修改推荐数据源 / 封面图加载方式时打上「已选择」标记：此后部署者的
-        // DEFAULT_RECOMMEND_SOURCE / DEFAULT_IMAGE_MODE 默认值不再覆盖该用户的选择
-        const touched = 'recommendSource' in patch;
-        const imageTouched = 'imageProxyMode' in patch;
         // 打开成人内容过滤时，同步取消勾选所有成人源，避免两者并存
         if (patch.yellowFilter === true) {
           const adultKeys = new Set(
-            [...get().customAPIs, ...get().envSources]
+            get().customAPIs
               .filter((s) => s.isAdult)
               .map((s) => s.key)
           );
           set({
             ...patch,
-            ...(touched ? { recommendSourceTouched: true } : null),
-            ...(imageTouched ? { imageProxyModeTouched: true } : null),
             selectedKeys: get().selectedKeys.filter((k) => !adultKeys.has(k)),
           });
           return;
         }
-        set({
-          ...patch,
-          ...(touched ? { recommendSourceTouched: true } : null),
-          ...(imageTouched ? { imageProxyModeTouched: true } : null),
-        });
+        set({ ...patch });
       },
     }),
     {
@@ -853,11 +814,12 @@ export const useAppStore = create<AppState>()(
       // v7：片尾结束也并入同一开关（不再单独提供 autoSkipOutro）。
       // v8：订阅新增 refreshDays / failStreak——两者都缺省即「纯手动 + 无失败记录」，
       //     与旧行为完全一致，因此无需改写存量数据，仅借版本号让 migrate 跑一遍。
+      // v9：新增 TVBOX 配置附加信息 tvboxByUrl 与生效地址 tvboxActiveUrl——缺省即
+      //     「没有任何 TVBOX 配置」，壁纸与解析线路都不展示，与升级前行为一致，仅补默认值。
       // 此前未声明 version 的存量数据会被视为 v0 并走 migrate 补齐。
-      version: 8,
+      version: 10,
       migrate: (persisted, version) => {
         const state = { ...((persisted ?? {}) as Partial<AppState>) };
-        if (!Array.isArray(state.liveRecent)) state.liveRecent = [];
         if (!Array.isArray(state.liveSubscriptions)) state.liveSubscriptions = [];
 
         // v3 的片头/片尾双标记 → v4 的 segments（纯函数，脏数据在内部丢弃）
@@ -909,34 +871,51 @@ export const useAppStore = create<AppState>()(
             };
           });
         }
+
+        // v9：TVBOX 配置附加信息与生效地址。
+        // 两者都是「可缺失」的新增字段：旧快照里没有 → 补成「没有配置 + 未选定」，
+        // 存量数据一条都不动（不覆盖 customAPIs / subscriptions 等已有字段）。
+        if (version < 9) {
+          if (!state.tvboxByUrl || typeof state.tvboxByUrl !== 'object' || Array.isArray(state.tvboxByUrl)) {
+            state.tvboxByUrl = {};
+          }
+          if (typeof state.tvboxActiveUrl !== 'string') state.tvboxActiveUrl = undefined;
+        }
+        // v10：页面背景壁纸（off / tvbox / local）+ 本地图片 id + 压暗程度。
+        // 缺省按 `tvbox` 处理：升级前就是「配置里有 wallpaper 才显示」，行为不变。
+        if (version < 10) {
+          if (state.wallpaperMode !== 'off' && state.wallpaperMode !== 'tvbox' && state.wallpaperMode !== 'local') {
+            state.wallpaperMode = 'tvbox';
+          }
+          if (typeof state.wallpaperLocalId !== 'string') state.wallpaperLocalId = undefined;
+          const dim = Number(state.wallpaperDim);
+          state.wallpaperDim = Number.isFinite(dim) ? Math.min(95, Math.max(0, Math.round(dim))) : 78;
+        }
         return state as AppState;
       },
-      // envSources 由服务端每次下发，不进 localStorage；
-      // liveProbeResults 体积大且写入频繁，持久化走 IndexedDB（db.ts liveProbe 表），不进 localStorage
       partialize: (s) => ({
         customAPIs: s.customAPIs,
         selectedKeys: s.selectedKeys,
-        envKeysSeen: s.envKeysSeen,
         subscriptions: s.subscriptions,
-        liveEnvKeysSeen: s.liveEnvKeysSeen,
         liveSubscriptions: s.liveSubscriptions,
         liveSelectedUrls: s.liveSelectedUrls,
-        liveFavorites: s.liveFavorites,
-        liveRecent: s.liveRecent,
         sourceHealth: s.sourceHealth,
         qualityMap: s.qualityMap,
-        envSubsSeen: s.envSubsSeen,
+        tvboxByUrl: s.tvboxByUrl,
+        tvboxActiveUrl: s.tvboxActiveUrl,
         yellowFilter: s.yellowFilter,
         adFilter: s.adFilter,
         doubanEnabled: s.doubanEnabled,
         recommendSource: s.recommendSource,
-        recommendSourceTouched: s.recommendSourceTouched,
         autoplayNext: s.autoplayNext,
         skipMarks: s.skipMarks,
         autoSkipSegments: s.autoSkipSegments,
         imageProxyMode: s.imageProxyMode,
-        imageProxyModeTouched: s.imageProxyModeTouched,
         customImageProxy: s.customImageProxy,
+        wallpaperMode: s.wallpaperMode,
+        wallpaperLocalId: s.wallpaperLocalId,
+        wallpaperDim: s.wallpaperDim,
+        wallpaperFit: s.wallpaperFit,
       }),
       // 同步 storage 会在模块加载时立即 rehydrate（早于 React hydration），
       // 一旦首屏渲染依赖持久化状态就会与 SSR 输出不一致。
@@ -945,30 +924,6 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
-
-/**
- * 从 IndexedDB 恢复测活缓存（Providers 挂载后、persist.rehydrate 之后调用）。
- * - 必须晚于 rehydrate：旧版本把 liveProbeResults 存在 localStorage 的设置快照里，
- *   rehydrate 会先把它读进内存，这里合并后一次性搬迁进 IndexedDB，快照随下次持久化自然瘦身；
- * - 顺带清理表中过期行；IndexedDB 不可用时静默跳过（本会话仍可测活，只是不缓存）。
- */
-export async function hydrateLiveProbeResults(): Promise<void> {
-  try {
-    const now = Date.now();
-    const stored = await loadLiveProbeResults();
-    const merged: Record<string, LiveProbeEntry> = { ...useAppStore.getState().liveProbeResults, ...stored };
-    const fresh: Record<string, LiveProbeEntry> = {};
-    for (const [url, e] of Object.entries(merged)) {
-      if (now - e.timestamp < LIVE_PROBE_TTL_MS) fresh[url] = e;
-    }
-    // 全量比对后整体覆写，同时覆盖「旧快照搬迁」与「表内过期行清理」两种情况
-    await clearLiveProbeResultsDb();
-    await saveLiveProbeResults(fresh);
-    useAppStore.setState({ liveProbeResults: fresh });
-  } catch {
-    // 隐私模式 / IndexedDB 被禁用：放弃持久化，不影响内存态
-  }
-}
 
 /** 获取指定 key 的源配置；找不到时支持从 URL 参数兜底构造 */
 export function resolveSource(

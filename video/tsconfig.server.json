@@ -1,0 +1,24 @@
+{
+  "//": "服务核编译配置：把 src/server（Electron 主进程内建数据层）编译成 CommonJS，产出到 desktop/resources/api。",
+  "//1": "刻意不用打包器：src/lib 已完全脱离 next/*，src/server 只用相对 import，plain tsc 即可。",
+  "//2": "禁止 paths 别名：别名不会被 tsc 重写，运行时 require('@/lib/x') 会直接失败。",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "isolatedModules": false,
+    "incremental": false,
+    "declaration": false,
+    "sourceMap": false,
+    "outDir": "../desktop/resources/api",
+    "rootDir": "src",
+    "paths": {},
+    "plugins": []
+  },
+  "include": ["src/server/**/*.ts", "src/lib/**/*.ts"],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx"]
+}

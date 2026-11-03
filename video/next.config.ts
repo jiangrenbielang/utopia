@@ -15,9 +15,17 @@ function readAppVersion(): string {
 }
 
 const nextConfig: NextConfig = {
-  // standalone 输出仅供 Docker 镜像构建使用（DOCKER_BUILD=1）；
-  // 本地 next start 在 standalone 模式下不受支持，故按环境切换
-  output: process.env.DOCKER_BUILD === '1' ? 'standalone' : undefined,
+  // 三种构建形态：
+  // - 默认：本地 `next start` / `next dev`（不产出 standalone，standalone 下本地 start 不受支持）
+  // - DOCKER_BUILD=1：Docker 镜像用的 standalone 输出
+  // - STATIC_EXPORT=1：桌面客户端用的纯静态导出（页面 + 资源，不含任何 route handler）。
+  //   注意：静态导出要求 `src/app/api` 在构建时不在源码树里，由 desktop 的构建脚本临时移出。
+  output:
+    process.env.STATIC_EXPORT === '1'
+      ? 'export'
+      : process.env.DOCKER_BUILD === '1'
+        ? 'standalone'
+        : undefined,
   reactStrictMode: true,
   env: { APP_VERSION: readAppVersion() },
   // 采集站/豆瓣等上游地址在运行时由用户配置，构建期无法枚举，关闭图片优化改用 <img>

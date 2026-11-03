@@ -103,20 +103,37 @@ describe('parseTvboxPayload', () => {
     expect(result.stats?.skippedByReason).toEqual({ unsearchable: 1 });
   });
 
-  it('直播：单仓 JSON 与 txt 频道列表跳过，非 M3U 地址计入 invalidUrl', () => {
+  it('直播：.txt 播放列表放行（内容嗅探），单仓 JSON 跳过，非 http(s) 计入 invalidUrl', () => {
     const result = parseTvboxPayload({
       sites: [vodSite('https://a.example.com/api.php/provide/vod')],
       lives: [
         { name: '直播A', type: 0, url: 'https://live.example.com/list.m3u' },
         { name: '单仓', type: 1, url: 'https://live.example.com/all.json' },
+        // 实测 jinenge 的 ./lib/interface.txt 内容其实是标准 M3U：扩展名不可信，必须放行
         { name: 'txt列表', type: 0, url: 'https://live.example.com/tv.txt' },
         { name: '坏地址', type: 0, url: 'ftp://live.example.com/list.m3u' },
       ],
     });
 
-    expect(result.liveSources.map((s) => s.name)).toEqual(['直播A']);
-    expect(result.stats?.skipped).toBe(3);
-    expect(result.stats?.skippedByReason).toEqual({ nonM3uLive: 2, invalidUrl: 1 });
+    expect(result.liveSources.map((s) => s.name)).toEqual(['直播A', 'txt列表']);
+    expect(result.stats?.skipped).toBe(2);
+    expect(result.stats?.skippedByReason).toEqual({ nonM3uLive: 1, invalidUrl: 1 });
+  });
+
+  it('直播：单仓 JSON（带 channels / .json / 无地址）一律按 nonM3uLive 跳过', () => {
+    const result = parseTvboxPayload({
+      sites: [vodSite('https://a.example.com/api.php/provide/vod')],
+      lives: [
+        // type 缺失但结构就是单仓 JSON
+        { name: 'channels 单仓', group: '央视', channels: [{ name: 'CCTV-1', urls: ['http://a/x.m3u8'] }] },
+        { name: 'json 后缀', type: 0, url: 'https://live.example.com/live.json' },
+        // 另一种 type 缺失但地址像播放列表：不按扩展名拒绝
+        { name: '无扩展名', url: 'https://live.example.com/interface' },
+      ],
+    });
+
+    expect(result.liveSources.map((s) => s.name)).toEqual(['无扩展名']);
+    expect(result.stats?.skippedByReason).toEqual({ nonM3uLive: 2 });
   });
 
   it('按地址去重（点播去尾部斜杠后比较，直播保留原样）', () => {

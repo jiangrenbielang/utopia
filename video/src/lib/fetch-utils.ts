@@ -1,6 +1,6 @@
 /** 服务端上游请求工具：超时、重试、安全跳转、JSON 解析 */
 
-import { checkLiveUrlAllowed, checkUpstreamAllowed } from './ssrf';
+import { allowPrivateAny, checkPrivateAllowed, checkUpstreamAllowed } from './ssrf';
 
 export interface FetchOptions extends RequestInit {
   timeoutMs?: number;
@@ -11,8 +11,9 @@ export interface FetchOptions extends RequestInit {
    */
   safeRedirects?: boolean;
   /**
-   * 直播场景放行内网地址（自建 IPTV）：仅在部署者设置 LIVE_ALLOW_PRIVATE=1 时生效。
-   * 校验复用 checkLiveUrlAllowed，与直播流代理使用同一把尺子。
+   * 放行内网地址（自建 IPTV / 自建 AList、OpenList 等）。
+   * 是否真正放行仍由 `LIVE_ALLOW_PRIVATE` / `ALLOW_PRIVATE_UPSTREAM` 两个开关决定：
+   * 打开此项只是把逐跳复检换成「放行内网」那把尺子，开关没开时行为与之前完全一致。
    */
   allowPrivate?: boolean;
 }
@@ -29,8 +30,9 @@ export interface FetchResult {
 
 export interface SafeRedirectOptions {
   /**
-   * 直播场景放行内网地址（自建 IPTV）：仅在部署者设置 LIVE_ALLOW_PRIVATE=1 时生效。
-   * 校验复用 checkLiveUrlAllowed，与直播流代理使用同一把尺子。
+   * 放行内网地址（自建 IPTV / 自建 AList、OpenList 等）。
+   * 是否真正放行仍由 `LIVE_ALLOW_PRIVATE` / `ALLOW_PRIVATE_UPSTREAM` 两个开关决定：
+   * 打开此项只是把逐跳复检换成「放行内网」那把尺子，开关没开时行为与之前完全一致。
    */
   allowPrivate?: boolean;
   /**
@@ -60,9 +62,15 @@ export async function fetchWithSafeRedirects(
     else init.signal.addEventListener('abort', () => controller.abort(init.signal?.reason), { once: true });
   }
   for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
-    const verdict = allowPrivate
-      ? await checkLiveUrlAllowed(current)
-      : await checkUpstreamAllowed(current);
+    /**
+     * 逐跳复检：默认用严格尺子。
+     * 只有当调用方要求放行、**且**部署者确实打开了对应开关时才切到宽松尺子——
+     * 否则「公网地址 302 到内网」就能绕过首跳校验（这正是必须逐跳复检的原因）。
+     */
+    const verdict =
+      allowPrivate && allowPrivateAny()
+        ? await checkPrivateAllowed(current)
+        : await checkUpstreamAllowed(current);
     if (!verdict.ok) {
       throw new Error(`跳转目标被拒绝: ${verdict.reason}`);
     }

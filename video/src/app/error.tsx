@@ -22,11 +22,21 @@ export default function ErrorPage({
   return (
     <div className="min-h-screen flex flex-col">
       <main className="flex-1 flex items-center justify-center px-4">
-        <ErrorState
-          message="页面出了点问题，请重试。若持续失败请返回首页。"
-          onRetry={reset}
-          retryLabel="重试"
-        />
+        <div className="w-full max-w-xl">
+          <ErrorState
+            message="页面出了点问题，请重试。若持续失败请返回首页。"
+            onRetry={reset}
+            retryLabel="重试"
+          />
+          {/* 把真正的异常露出来：错误边界只给人看一句通用文案，排查时全靠这段 */}
+          <details className="mt-4 text-xs text-faint">
+            <summary className="cursor-pointer hover:text-content">技术细节</summary>
+            <pre className="mt-2 whitespace-pre-wrap break-all rounded-md border border-line bg-surface p-3 text-[11px] text-muted">
+              {error?.message || '(无 message)'}
+              {error?.digest ? `\n\ndigest: ${error.digest}` : ''}
+            </pre>
+          </details>
+        </div>
       </main>
       <footer className="border-t border-line py-4">
         <p className="text-center text-xs text-faint">

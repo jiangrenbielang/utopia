@@ -6,11 +6,14 @@ import { SUBJECTS } from '@/lib/study/types';
 
 export default function AboutPage() {
   return (
-    <PageShell className="max-w-3xl">
+    <PageShell>
+      {/* PageShell 已放宽到全宽（TVBox 海报网格需要）；正文这里再收一层窄容器 */}
+      <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold text-content">关于 Utopia</h1>
       <p className="text-sm text-muted leading-relaxed mt-2">
         Utopia 是一个面向考研备考的本地网课学习平台：按科目组织课程、观看网课时自动记录学习时长，
-        并提供考试倒计时、日/周/月统计与历史日志。界面与交互沿用 LibreTV 的深色赛博风格。
+        并提供考试倒计时、日/周/月统计与历史日志。播放内核沿用 LibreTV，数据源由 TVBox 配置地址驱动，
+        界面为 TVBox 风格的中性深色主题。
       </p>
 
       <section className="card p-5 mt-5">
@@ -70,8 +73,8 @@ export default function AboutPage() {
           >
             LibreTV
           </a>{' '}
-          构建，遵循 AGPL-3.0 License。Utopia 不存储、不制作任何视频内容；课程视频与资源库内容均来自你自行配置的第三方地址，
-          请尊重版权并确保拥有相应学习权限。
+          构建，遵循 AGPL-3.0 License。Utopia 不存储、不制作任何视频内容；课程视频与资源库内容均来自你自行配置的第三方地址
+          （TVBox 配置地址或课程直链），请尊重版权并确保拥有相应学习权限。
         </p>
       </section>
 
@@ -79,6 +82,7 @@ export default function AboutPage() {
         返回 <Link href="/" className="text-accent hover:underline">首页</Link> 或{' '}
         <Link href="/settings" className="text-accent hover:underline">学习设置</Link>。
       </p>
+      </div>
     </PageShell>
   );
 }

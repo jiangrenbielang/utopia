@@ -10,8 +10,8 @@ import { EmptyState } from './states';
 import { Icon } from './icon';
 
 /**
- * 直播源管理（嵌入设置抽屉）：M3U 订阅的添加 / 探活 / 移除 / 导出，
- * 以及部署者预置源展示。工具条、徽章、空态与撤销语义与点播源面板保持一致。
+ * 直播源管理（嵌入设置抽屉）：M3U 订阅的添加 / 探活 / 移除 / 导出。
+ * 工具条、徽章、空态与撤销语义与点播源面板保持一致。
  */
 
 type LiveFilter = 'all' | 'enabled' | 'disabled' | 'sub' | 'manual';
@@ -29,7 +29,6 @@ interface LiveRow {
   url: string;
   label: string;
   epgUrl?: string;
-  preset: boolean;
   lastSync?: number;
   fromSubscriptions: string[];
 }
@@ -45,32 +44,23 @@ export function LiveSourceManager() {
   const { tests, runTest } = useSourceTests();
 
   const rows = useMemo<LiveRow[]>(() => {
-    const preset: LiveRow[] = store.liveEnvSources.map((s) => ({
+    const all: LiveRow[] = store.liveSubscriptions.map((s) => ({
       url: s.url,
       label: s.name || hostnameOf(s.url),
       epgUrl: s.epg,
-      preset: true,
-      fromSubscriptions: [],
-    }));
-    const subs: LiveRow[] = store.liveSubscriptions.map((s) => ({
-      url: s.url,
-      label: s.name || hostnameOf(s.url),
-      epgUrl: s.epg,
-      preset: false,
       lastSync: s.lastSync,
       fromSubscriptions: s.fromSubscriptions,
     }));
-    const all = [...preset, ...subs];
     const q = query.trim().toLowerCase();
     return all.filter((r) => {
       if (filter === 'enabled' && !store.liveSelectedUrls.includes(r.url)) return false;
       if (filter === 'disabled' && store.liveSelectedUrls.includes(r.url)) return false;
       if (filter === 'sub' && r.fromSubscriptions.length === 0) return false;
-      if (filter === 'manual' && !(r.fromSubscriptions.length === 0 && !r.preset)) return false;
+      if (filter === 'manual' && r.fromSubscriptions.length > 0) return false;
       if (!q) return true;
       return r.label.toLowerCase().includes(q) || r.url.toLowerCase().includes(q);
     });
-  }, [store.liveEnvSources, store.liveSubscriptions, store.liveSelectedUrls, query, filter]);
+  }, [store.liveSubscriptions, store.liveSelectedUrls, query, filter]);
 
   // 编辑中的手动源（与「添加」共用同一表单）
   const editingSource = editing ? store.liveSubscriptions.find((s) => s.url === editing) : undefined;
@@ -104,13 +94,13 @@ export function LiveSourceManager() {
     });
   };
 
-  const empty = store.liveEnvSources.length === 0 && store.liveSubscriptions.length === 0;
+  const empty = store.liveSubscriptions.length === 0;
 
   return (
     <section>
       <SectionTitle
         title="直播源"
-        hint={empty ? 'M3U 订阅 · /live 页面播放' : `共 ${store.liveEnvSources.length + store.liveSubscriptions.length} 个 · 已启用 ${store.liveSelectedUrls.length}`}
+        hint={empty ? 'M3U 订阅 · /live 页面播放' : `共 ${store.liveSubscriptions.length} 个 · 已启用 ${store.liveSelectedUrls.length}`}
         extra={
           <button className="btn-primary btn-sm" onClick={() => setAdding(true)}>
             <Icon name="plus" className="w-3.5 h-3.5" />
@@ -144,7 +134,7 @@ export function LiveSourceManager() {
         <EmptyState
           icon="link"
           title="还没有添加任何直播源"
-          description="添加 M3U 地址后即可在「直播」页按分组浏览与播放频道；也可在「数据源订阅」中一次导入点播源与直播源；部署者还可通过 DEFAULT_LIVE_SOURCES 环境变量预置。"
+          description="添加 M3U 地址后即可在「直播」页按分组浏览与播放频道；也可在「数据源订阅」中一次导入点播源与直播源。"
           action={
             <button className="btn-primary btn-sm" onClick={() => setAdding(true)}>
               添加第一个直播源
@@ -204,11 +194,6 @@ export function LiveSourceManager() {
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-content truncate">
                           {row.label}
-                          {row.preset && (
-                            <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-chip text-faint align-middle">
-                              部署者预置
-                            </span>
-                          )}
                           {fromSubscription && (
                             <span
                               className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent align-middle"
@@ -238,7 +223,7 @@ export function LiveSourceManager() {
                       >
                         <Icon name="download" className="w-4 h-4" />
                       </button>
-                      {row.preset ? null : fromSubscription ? (
+                      {fromSubscription ? (
                         <>
                           {/* 订阅源由远端列表管理：编辑会被下次同步覆盖、删除会复活，故置为禁用态并指路 */}
                           <button

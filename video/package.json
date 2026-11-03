@@ -2,7 +2,7 @@
   "name": "utopia-web",
   "version": "2.21.0",
   "private": true,
-  "description": "Utopia：考研网课学习平台（基于 LibreTV 构建，按科目学习并记录学习时长）",
+  "description": "Utopia：考研网课学习平台（播放内核沿用 LibreTV，数据源改为 TVBox 配置地址驱动，按科目学习并记录学习时长）",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "next dev -p 8080",

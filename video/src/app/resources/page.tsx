@@ -50,7 +50,7 @@ function ResourcesContent() {
   }, [urlQuery]);
 
   const sourceName = (key: string) =>
-    customAPIs.find((a) => a.key === key)?.name ?? envSources.find((a) => a.key === key)?.name ?? key;
+    customAPIs.find((a) => a.key === key)?.name ?? key;
 
   const selectedSources = useMemo(() => {
     const seen = new Set<string>();
@@ -143,16 +143,17 @@ function ResourcesContent() {
 
   return (
     <PageShell>
-      <section className={cn('flex flex-col items-center', urlQuery ? 'mb-6' : 'mt-4 mb-8')}>
+      {/* TVBox 风：没有居中大标题，搜索入口直接置顶 */}
+      <section className={cn('flex flex-col', urlQuery ? 'mb-6' : 'mb-8')}>
         {!urlQuery && (
-          <header className="text-center mb-5">
-            <h1 className="text-3xl sm:text-4xl font-bold brand-gradient">资源库</h1>
-            <p className="text-sm text-muted mt-2">聚合多个点播源搜索网课视频，选中后即可在站内播放并记录学习时长</p>
+          <header className="mb-4">
+            <h1 className="text-xl sm:text-2xl font-bold text-content">资源库</h1>
+            <p className="text-sm text-muted mt-1.5">聚合多个点播源搜索网课视频，选中后即可在站内播放并记录学习时长</p>
           </header>
         )}
         {urlQuery && <h1 className="sr-only">网课资源搜索</h1>}
 
-        <div ref={searchHistory.containerRef} className="relative w-full max-w-2xl">
+        <div ref={searchHistory.containerRef} className="relative w-full max-w-3xl">
           <form
             className="w-full"
             onSubmit={(e) => {
@@ -228,10 +229,10 @@ function ResourcesContent() {
         </div>
 
         {!urlQuery && (
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+          <div className="flex flex-wrap items-center gap-2 mt-4">
             <span className="text-xs text-faint">试试：</span>
             {recentQueries.map((q) => (
-              <button key={q} className="chip bg-chip text-muted hover:text-content hover:bg-hover" onClick={() => runSearch(q)}>
+              <button key={q} className="chip-lg bg-chip text-muted hover:text-content hover:bg-hover" onClick={() => runSearch(q)}>
                 {q}
               </button>
             ))}
@@ -286,10 +287,11 @@ function ResourcesContent() {
           )}
 
           {selectedSources.length === 0 ? (
-            <NoSourceGuide hasSources={customAPIs.length > 0 || envSources.length > 0} />
+            <NoSourceGuide hasSources={customAPIs.length > 0} />
           ) : list.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
+              {/* TVBox 风：紧凑海报网格，一行铺开的列数随屏幕宽度增长 */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {visibleGroups.map((group) => (
                   <AggregatedCard
                     key={group.key}
@@ -321,7 +323,7 @@ function ResourcesContent() {
       )}
 
       {!urlQuery && (
-        <div className="card p-5 max-w-2xl mx-auto">
+        <div className="card p-5 max-w-2xl">
           <h2 className="text-sm font-medium text-content mb-2">怎么把资源变成课程？</h2>
           <ol className="text-xs text-muted leading-relaxed list-decimal pl-4 space-y-1">
             <li>在右上角「设置」里添加点播源（Apple CMS 采集站地址），勾选后回到这里搜索。</li>
@@ -338,14 +340,13 @@ function ResourcesContent() {
 
 function ResultsSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="card flex h-28 overflow-hidden">
-          <div className="w-[105px] sm:w-[120px] shrink-0 bg-chip animate-pulse" />
-          <div className="flex-1 p-2.5 space-y-2">
-            <div className="h-4 w-3/4 rounded bg-chip animate-pulse" />
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      {Array.from({ length: 12 }).map((_, i) => (
+        <div key={i} className="card overflow-hidden">
+          <div className="poster animate-pulse" />
+          <div className="space-y-2 p-2">
+            <div className="h-3.5 w-4/5 rounded bg-chip animate-pulse" />
             <div className="h-3 w-1/2 rounded bg-chip animate-pulse" />
-            <div className="h-3 w-full rounded bg-chip animate-pulse" />
           </div>
         </div>
       ))}

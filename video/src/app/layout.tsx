@@ -33,6 +33,10 @@ export const viewport: Viewport = {
   ],
   width: 'device-width',
   initialScale: 1,
+  // 移动端浏览器 UI 收缩（地址栏滑入滑出不触发 resize 抖动）
+  interactiveWidget: 'resizes-content',
+  // iOS Safari 独立模式（添加到主屏后）的状态栏样式跟随内容
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

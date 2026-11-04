@@ -49,6 +49,8 @@ let settingsWindow = null;
 let quitting = false;
 /** 最近一次页面同步来的顶栏深浅（WCO 图标颜色依据；null = 尚未同步过 */
 let lastHeaderDark = null;
+/** 窗口状态防抖落盘计时器 */
+let windowStateTimer = null;
 
 /**
  * WCO 覆盖层设置：底色全透明（玻璃顶栏透出材质），仅按钮图标按顶栏深浅取反色
@@ -81,6 +83,43 @@ function defaultConfig() {
     // 自建网盘（AList / OpenList）常在本机或局域网；桌面数据层只监听环回地址，默认放行
     allowPrivateUpstream: true,
   };
+}
+
+/** 上次会话的窗口状态（位置/尺寸/是否最大化）；不存在或非法时返回 null */
+function loadWindowState() {
+  try {
+    const state = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'window-state.json'), 'utf8'));
+    if (
+      state &&
+      typeof state.x === 'number' &&
+      typeof state.y === 'number' &&
+      typeof state.width === 'number' &&
+      typeof state.height === 'number' &&
+      state.width >= 200 &&
+      state.height >= 120
+    ) {
+      return state;
+    }
+  } catch {
+    /* 首次运行 / 文件损坏：走默认尺寸 */
+  }
+  return null;
+}
+
+function saveWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    // 最小化时 getBounds 返回 (-32000)：只在正常/最大化态落盘
+    if (mainWindow.isMinimized()) return;
+    const bounds = mainWindow.getNormalBounds();
+    fs.writeFileSync(
+      path.join(app.getPath('userData'), 'window-state.json'),
+      JSON.stringify({ ...bounds, maximized: mainWindow.isMaximized() }, null, 2),
+      'utf8'
+    );
+  } catch {
+    /* ignore */
+  }
 }
 
 function saveConfig() {
@@ -258,9 +297,12 @@ function bindWindowShortcuts(win) {
 }
 
 function createWindow() {
+  // 上次会话的窗口位置/尺寸（恢复现场；首次运行走默认并居中由系统决定）
+  const lastState = loadWindowState();
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 860,
+    width: lastState?.width ?? 1280,
+    height: lastState?.height ?? 860,
+    ...(lastState ? { x: lastState.x, y: lastState.y } : {}),
     minWidth: 960,
     minHeight: 640,
     show: true,
@@ -334,6 +376,26 @@ function createWindow() {
   });
   // 菜单栏已移除：缩放 / 整屏 / 开发者工具 / 打开设置 都靠窗口内快捷键
   bindWindowShortcuts(mainWindow);
+  // 窗口状态持久化：移动/缩放/最大化变化后防抖落盘；关闭时立即保存
+  const persistWindowState = () => {
+    clearTimeout(windowStateTimer);
+    windowStateTimer = setTimeout(saveWindowState, 800);
+  };
+  mainWindow.on('resize', persistWindowState);
+  mainWindow.on('move', persistWindowState);
+  mainWindow.on('maximize', persistWindowState);
+  mainWindow.on('unmaximize', persistWindowState);
+  mainWindow.on('close', saveWindowState);
+  // 上次是最大化态：显示后恢复（先 show 再 maximize，避免透明窗口闪烁）
+  if (lastState?.maximized) {
+    mainWindow.once('ready-to-show', () => {
+      try {
+        mainWindow.maximize();
+      } catch {
+        /* ignore */
+      }
+    });
+  }
   mainWindow.loadURL(`${WEB_BASE}${process.env.UTOPIA_START_PATH || '/'}`);
   mainWindow.show();
 }
@@ -345,13 +407,6 @@ function registerIpc() {
     };
   });
   ipcMain.on('desktop:open-settings', () => openSettings());
-  /**
-   * WCO 几何与玻璃能力（同步）：Electron 自带 getTitleBarOverlayRect
-   * （与页面侧 CSS env(titlebar-area-*) 同源数据）。渲染层首屏脚本用它把
-   * --ut-titlebar-w/h 写到 <html> 上，供 Header 的 drag 区让位计算；
-   * glass 标志告知页面可以启用玻璃标题栏样式（.glass-titlebar）。
-   * 非桌面 / 非 WCO 环境返回 null，页面回落为浏览器外观。
-   */
   /**
    * WCO 与玻璃能力查询（同步）：
    * - Electron 45 没有 getTitleBarOverlayRect API，WCO 几何由渲染层的标准
@@ -404,6 +459,16 @@ function registerIpc() {
       log('native theme sync failed', String(error?.message || error));
     }
     return { ok: true };
+  });
+  ipcMain.handle('desktop:toggle-fullscreen', () => {
+    try {
+      if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+      return { ok: true };
+    } catch (error) {
+      log('toggle fullscreen failed', String(error?.message || error));
+      return { ok: false };
+    }
   });
   ipcMain.handle('settings:load', () => ({
     allowPrivateUpstream: config.allowPrivateUpstream !== false,

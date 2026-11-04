@@ -33,6 +33,8 @@ declare global {
       setNativeTheme?: (payload: NativeAppearancePayload | boolean | 'system') => Promise<{ ok: boolean } | void> | void;
       /** 桌面能力 {glass}（Win11 玻璃材质）；WCO 几何走 env(titlebar-area-*)。非桌面 null */
       titleBarInfo?: () => { glass?: boolean } | null;
+      /** 桌面端窗口全屏切换；非桌面端由 desktop-bridge 回落 Fullscreen API */
+      toggleFullscreen?: () => Promise<{ ok: boolean } | void> | void;
     };
   }
 }

@@ -389,3 +389,21 @@ html.os-desktop.glass-titlebar nav[aria-label='底部导航'] {
 
 /* 壁纸模式与玻璃标题栏叠加时：壁纸规则已把顶栏调成 0.52 透明度，
    保持壁纸优先（has-wallpaper 规则在后加载会覆盖本节同特异性规则）。 */
+
+/*
+ * ============ 三端统一的玻璃条基线 ============
+ *
+ * .glass-bar：顶栏 / 底部导航共用的半透明 + 背景模糊 + 提饱和。
+ * 三端视觉语言由此统一：
+ * - web / 移动端：CSS backdrop-filter 直接模糊页面内容（基线 0.85）；
+ * - 壁纸模式（html.has-wallpaper，特异性更高）：0.52 + blur(24) 覆盖基线；
+ * - 桌面 Win11 亚克力（html.os-desktop.glass-titlebar，特异性更高）：0.38 + blur(28)。
+ * 透明度层级：基线 0.85 → 壁纸 0.52 → 桌面亚克力 0.38。
+ */
+@layer components {
+  .glass-bar {
+    background-color: rgb(var(--c-surface) / 0.85);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+  }
+}

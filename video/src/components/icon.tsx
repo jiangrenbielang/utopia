@@ -32,7 +32,8 @@ export type IconName =
   | 'list'
   | 'calendar'
   | 'flag'
-  | 'image';
+  | 'image'
+  | 'dots';
 
 const PATHS: Record<IconName, ReactNode> = {
   close: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />,
@@ -205,6 +206,14 @@ const PATHS: Record<IconName, ReactNode> = {
       strokeLinejoin="round"
       strokeWidth={2}
       d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 3.75h16.5A1.5 1.5 0 0 1 21.75 5.25v13.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V5.25a1.5 1.5 0 0 1 1.5-1.5Zm10.5 3.75h.008v.008H14.25V7.5Z"
+    />
+  ),
+  // 「更多」菜单：三个竖排圆点（实心，不受描边风格影响）
+  dots: (
+    <path
+      fill="currentColor"
+      stroke="none"
+      d="M12 5.25a1.875 1.875 0 1 1 0 3.75 1.875 1.875 0 0 1 0-3.75Zm0 4.875a1.875 1.875 0 1 1 0 3.75 1.875 1.875 0 0 1 0-3.75Zm0 4.875a1.875 1.875 0 1 1 0 3.75 1.875 1.875 0 0 1 0-3.75Z"
     />
   ),
 };

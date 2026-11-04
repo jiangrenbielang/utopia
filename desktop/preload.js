@@ -28,4 +28,9 @@ contextBridge.exposeInMainWorld('utopiaDesktop', {
       return null;
     }
   },
+  /**
+   * 窗口全屏切换（三端对齐 API）：桌面端切原生窗口全屏（标题栏一并隐藏），
+   * 页面侧的 web/移动端由 desktop-bridge 回落 Fullscreen API。
+   */
+  toggleFullscreen: () => ipcRenderer.invoke('desktop:toggle-fullscreen'),
 });

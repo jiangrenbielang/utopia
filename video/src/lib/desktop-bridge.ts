@@ -79,3 +79,29 @@ export function syncNativeAppearance(): void {
     /* 桥不可用（浏览器/旧版客户端）时忽略 */
   }
 }
+
+/**
+ * 桌面端窗口控制（三端对齐的内核 API）：web / 移动端全部为空操作，
+ * 页面代码可无差别调用——例如播放页全屏按钮，桌面端走原生窗口全屏
+ * （标题栏一并隐藏，视频面积最大化），其余端回落 Fullscreen API。
+ */
+export function toggleWindowFullscreen(): void {
+  if (typeof window === 'undefined') return;
+  const bridge = desktopBridge();
+  const fn = (bridge as unknown as { toggleFullscreen?: () => unknown })?.toggleFullscreen;
+  if (!fn) {
+    // 非桌面端：Fullscreen API（元素全屏），失败静默（iOS Safari 等受限环境）
+    try {
+      if (document.fullscreenElement) void document.exitFullscreen();
+      else void document.documentElement.requestFullscreen().catch(() => {});
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  try {
+    void fn();
+  } catch {
+    /* ignore */
+  }
+}

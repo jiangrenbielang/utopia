@@ -31,6 +31,13 @@ export default function manifest(): MetadataRoute.Manifest {
         type: 'image/png',
         purpose: 'any',
       },
+      // maskable：Android 自适应图标（安全区裁切）不裁坏内容
+      {
+        src: '/icons/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
     ],
   };
 }
